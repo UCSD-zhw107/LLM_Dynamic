@@ -1,0 +1,6 @@
+/prebuild
+.ignore
+/__pycache__
+/env_setup/.ignore
+/env_setup/credential.md
+/videos
