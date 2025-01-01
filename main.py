@@ -293,7 +293,7 @@ if __name__ == "__main__":
         """
         Convert Pen Pose to numpy array
         """
-        pose0 = to_numpy(pos0)
+        pos0 = to_numpy(pos0)
         orn0 = to_numpy(orn0)
 
         pose0 = np.concatenate([pos0, orn0])
@@ -328,7 +328,7 @@ if __name__ == "__main__":
         """
         Convert Pen Pose to numpy array
         """
-        pose0 = to_numpy(pos0)
+        pos0 = to_numpy(pos0)
         orn0 = to_numpy(orn0)
 
         pose0 = np.concatenate([pos0, orn0])
@@ -364,7 +364,7 @@ if __name__ == "__main__":
         """
         Convert Holder Pose to numpy array
         """
-        pose0 = to_numpy(pos0)
+        pos0 = to_numpy(pos0)
         orn0 = to_numpy(orn0)
 
         pose0 = np.concatenate([pos0, orn0])
