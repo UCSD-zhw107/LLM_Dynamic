@@ -20,6 +20,7 @@ from utils import (
     spline_interpolate_poses,
     get_callable_grasping_cost_fn,
     print_opt_debug_dict,
+    to_numpy
 )
 
 class Main:
@@ -289,6 +290,12 @@ if __name__ == "__main__":
         holder = env.og_env.scene.object_registry("name", "pencil_holder_1")
         # disturbance sequence
         pos0, orn0 = pen.get_position_orientation()
+        """
+        Convert Pen Pose to numpy array
+        """
+        pose0 = to_numpy(pos0)
+        orn0 = to_numpy(orn0)
+
         pose0 = np.concatenate([pos0, orn0])
         pos1 = pos0 + np.array([-0.08, 0.0, 0.0])
         orn1 = T.quat_multiply(T.euler2quat(np.array([0, 0, np.pi/4])), orn0)
@@ -318,6 +325,12 @@ if __name__ == "__main__":
         holder = env.og_env.scene.object_registry("name", "pencil_holder_1")
         # disturbance sequence
         pos0, orn0 = pen.get_position_orientation()
+        """
+        Convert Pen Pose to numpy array
+        """
+        pose0 = to_numpy(pos0)
+        orn0 = to_numpy(orn0)
+
         pose0 = np.concatenate([pos0, orn0])
         pose1 = np.array([-0.30, -0.15, 0.71, -0.7071068, 0, 0, 0.7071068])
         control_points = np.array([pose0, pose1])
@@ -348,6 +361,12 @@ if __name__ == "__main__":
         holder = env.og_env.scene.object_registry("name", "pencil_holder_1")
         # disturbance sequence
         pos0, orn0 = holder.get_position_orientation()
+        """
+        Convert Holder Pose to numpy array
+        """
+        pose0 = to_numpy(pos0)
+        orn0 = to_numpy(orn0)
+
         pose0 = np.concatenate([pos0, orn0])
         pos1 = pos0 + np.array([-0.02, -0.15, 0.0])
         orn1 = orn0
