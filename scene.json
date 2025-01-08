@@ -864,7 +864,7 @@
                     "prim_path": "/World/can_1",
                     "category": "trash_can",
                     "model": "gilsji",
-                    "scale": [2.0, 2.0, 1.0]
+                    "scale": [2.0, 2.0, 1.75]
                 }
             }
         }
