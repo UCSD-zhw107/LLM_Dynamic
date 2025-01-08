@@ -2,7 +2,7 @@ import open3d as o3d
 import numpy as np
 import matplotlib
 import cv2
-import transform_utils as T
+import ReKep.transform_utils as T
 from ReKep.utils import filter_points_by_bounds, batch_transform_points
 
 def add_to_visualize_buffer(visualize_buffer, visualize_points, visualize_colors):

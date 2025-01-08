@@ -1,9 +1,11 @@
 import time
+
+import cv2
 import utils
 import omnigibson as og
 from keypoint_proposal import KeypointProposer
 from og_utils import OGCamera
-
+from camera import RobotCamera
 
 def initialize_cameras(og_env,cam_config):
         """
@@ -21,22 +23,36 @@ def main():
     config_path = './config.yaml'
     scene_path = './scene.json'
     global_config = utils.get_config(config_path=config_path)
-    config = global_config['env']
-    config['scene']['scene_file'] = scene_path
-    og_env = og.Environment(dict(scene=config['scene'], robots=[config['robot']['robot_config']], env=config['og_sim']))
+    env_config = global_config['env']
+    env_config['scene']['scene_file'] = scene_path
+    og_env = og.Environment(dict(scene=env_config['scene'], robots=[env_config['robot']['robot_config']], env=env_config['og_sim']))
     og_env.scene.update_initial_state()
     for _ in range(10): og.sim.step()
 
     # Robot
     robot = og_env.robots[0]
-    action_dim = robot.action_dim
 
     # Camera
-    cams = initialize_cameras(og_env, config['camera'])
+    #cams = initialize_cameras(og_env, config['camera'])
+    cam = RobotCamera(robot, None)
+    cam_obs = cam.get_obs()
+    rgb = utils.to_numpy(cam_obs['rgb'])
+    points = utils.to_numpy(cam_obs['points'])
+    mask = utils.to_numpy(cam_obs['seg'])
+
+    # KeyPoints
+    keypoint_config = global_config['keypoint_proposer']
+    keypoint_proposer = KeypointProposer(keypoint_config)
+    keypoints, projected_img = keypoint_proposer.get_keypoints(rgb, points, mask)
+    cv2.imshow('img', projected_img[..., ::-1])
+    cv2.waitKey(0)
+    print('showing image, click on the window and press "ESC" to close and continue')
+    cv2.destroyAllWindows()
+
     
     # Perform Task
     og_env.reset()
-    for _ in range(100):
+    for _ in range(1000):
         #obs, _, _, _, _ = og_env.step([0.0] * action_dim)
         og.sim.step()
         time.sleep(0.1)
