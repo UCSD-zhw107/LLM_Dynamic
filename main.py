@@ -18,7 +18,8 @@ def main():
 
     og_env.scene.update_initial_state()
     for _ in range(100):
-        obs, _, _, _, _ = og_env.step([0.0] * action_dim)
+        #obs, _, _, _, _ = og_env.step([0.0] * action_dim)
+        og.sim.step()
         time.sleep(0.1)
     
     og.shutdown()
