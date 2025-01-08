@@ -12,7 +12,7 @@ from path_solver import PathSolver
 from visualizer import Visualizer
 import transform_utils as T
 from omnigibson.robots.fetch import Fetch
-from utils import (
+from ReKep.utils import (
     bcolors,
     get_config,
     load_functions_from_txt,

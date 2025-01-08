@@ -1,7 +1,7 @@
 from omnigibson.sensors.vision_sensor import VisionSensor
 import transform_utils as T
 import numpy as np
-from utils import to_numpy
+from ReKep.utils import to_numpy
 
 class OGCamera:
     """

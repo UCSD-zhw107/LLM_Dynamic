@@ -4,7 +4,7 @@ from scipy.interpolate import RegularGridInterpolator
 import copy
 import time
 import transform_utils as T
-from utils import (
+from ReKep.utils import (
     farthest_point_sampling,
     get_linear_interpolation_steps,
     linear_interpolate_poses,

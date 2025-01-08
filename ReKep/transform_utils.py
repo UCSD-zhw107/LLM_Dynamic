@@ -9,7 +9,7 @@ from numba import njit
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import torch
-from utils import to_numpy
+from ReKep.utils import to_numpy
 
 PI = np.pi
 EPS = np.finfo(float).eps * 4.0

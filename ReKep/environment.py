@@ -12,7 +12,7 @@ from omnigibson.utils.usd_utils import PoseAPI, mesh_prim_mesh_to_trimesh_mesh, 
 from omnigibson.robots.fetch import Fetch
 from omnigibson.controllers import IsGraspingState
 from og_utils import OGCamera
-from utils import (
+from ReKep.utils import (
     bcolors,
     get_clock_time,
     angle_between_rotmat,
