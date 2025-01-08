@@ -3,7 +3,7 @@ import torch
 import cv2
 from torch.nn.functional import interpolate
 from kmeans_pytorch import kmeans
-from ReKep.utils import filter_points_by_bounds
+from utils import filter_points_by_bounds
 from sklearn.cluster import MeanShift
 
 class KeypointProposer:

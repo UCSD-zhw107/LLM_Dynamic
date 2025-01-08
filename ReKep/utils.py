@@ -8,7 +8,7 @@ import scipy.interpolate as interpolate
 from scipy.spatial.transform import Slerp
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import RotationSpline
-import transform_utils as T
+import ReKep.transform_utils as T
 import yaml
 
 # ===============================================

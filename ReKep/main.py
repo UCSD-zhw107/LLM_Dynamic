@@ -3,14 +3,14 @@ import numpy as np
 import json
 import os
 import argparse
-from environment import ReKepOGEnv
-from keypoint_proposal import KeypointProposer
-from constraint_generation import ConstraintGenerator
-from ik_solver import IKSolver
-from subgoal_solver import SubgoalSolver
-from path_solver import PathSolver
-from visualizer import Visualizer
-import transform_utils as T
+from ReKep.environment import ReKepOGEnv
+from ReKep.keypoint_proposal import KeypointProposer
+from ReKep.constraint_generation import ConstraintGenerator
+from ReKep.ik_solver import IKSolver
+from ReKep.subgoal_solver import SubgoalSolver
+from ReKep.path_solver import PathSolver
+from ReKep.visualizer import Visualizer
+import ReKep.transform_utils as T
 from omnigibson.robots.fetch import Fetch
 from ReKep.utils import (
     bcolors,

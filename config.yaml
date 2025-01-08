@@ -34,12 +34,16 @@ env:
     robot_config:
       name: Fetch
       type: Fetch
-      obs_modalities: [rgb, depth]
+      obs_modalities: [rgb, depth_linear, seg_semantic]
       action_modalities: continuous
       action_normalize: False
       position: [-0.8, 0.0, 0.]
       grasping_mode: assisted
-
+      sensor_config:
+        VisionSensor:
+          sensor_kwargs:
+            image_height: 480
+            image_width: 480
       controller_config:
         base:
           name: DifferentialDriveController

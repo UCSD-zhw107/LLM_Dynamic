@@ -2,7 +2,7 @@ import time
 import numpy as np
 import os
 import datetime
-import transform_utils as T
+import ReKep.transform_utils as T
 import trimesh
 import open3d as o3d
 import imageio
@@ -11,7 +11,7 @@ from omnigibson.macros import gm
 from omnigibson.utils.usd_utils import PoseAPI, mesh_prim_mesh_to_trimesh_mesh, mesh_prim_shape_to_trimesh_mesh
 from omnigibson.robots.fetch import Fetch
 from omnigibson.controllers import IsGraspingState
-from og_utils import OGCamera
+from ReKep.og_utils import OGCamera
 from ReKep.utils import (
     bcolors,
     get_clock_time,
