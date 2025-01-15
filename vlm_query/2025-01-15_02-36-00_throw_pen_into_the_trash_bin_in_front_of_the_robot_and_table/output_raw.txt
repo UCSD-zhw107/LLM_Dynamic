@@ -1,0 +1,99 @@
+```python
+# Explanation:
+# The task is to throw the pen (keypoints 0-4) into the trash bin (keypoints 2 and 5). 
+# The robot's end-effector is at keypoint 8. The table is represented by keypoint 7.
+# The sub-goals and constraints are designed to ensure the robot moves the pen to a good starting position, accelerates it along a trajectory, and releases it at the correct point, angle, and speed to land in the trash bin.
+
+num_subgoals = 4
+num_constraints = 7
+
+import numpy as np
+
+### Sub-goals
+def compute_starting_point(keypoints):
+    """Compute a reasonable starting point for the prepare stage."""
+    # Align the starting point with the center of the trash bin (keypoint 5) and above the table (keypoint 7).
+    trash_bin_center = keypoints[5]
+    table_height = keypoints[7][2]
+    starting_point = np.array([trash_bin_center[0], trash_bin_center[1], table_height + 0.2])  # 20 cm above the table
+    return starting_point
+
+def compute_trajectory(starting_point, release_point):
+    """Compute a linear trajectory for the accelerate stage."""
+    # The trajectory is a straight line from the starting point to the release point.
+    return np.linspace(starting_point, release_point, num=50)
+
+def compute_parabola(release_point, release_speed, release_angle, gravity=9.81):
+    """Compute the parabola of the object after release."""
+    # Decompose release speed into horizontal and vertical components.
+    vx = release_speed * np.cos(release_angle)
+    vz = release_speed * np.sin(release_angle)
+    t_flight = (2 * vz) / gravity  # Total flight time
+    t = np.linspace(0, t_flight, num=50)
+    x = release_point[0] + vx * t
+    z = release_point[2] + vz * t - 0.5 * gravity * t**2
+    y = np.full_like(t, release_point[1])  # Assume no lateral movement
+    return np.stack([x, y, z], axis=1)
+
+def compute_release_parameters(keypoints):
+    """Compute release point, release angle, and release speed."""
+    # Release point is slightly above the trash bin center (keypoint 5).
+    release_point = keypoints[5] + np.array([0, 0, 0.1])  # 10 cm above the bin
+    # Release angle is 45 degrees for optimal range.
+    release_angle = np.pi / 4
+    # Release speed is calculated to ensure the object lands in the bin.
+    distance_to_bin = np.linalg.norm(keypoints[5][:2] - keypoints[8][:2])
+    release_speed = np.sqrt(distance_to_bin * 9.81 / np.sin(2 * release_angle))
+    return release_point, release_angle, release_speed
+
+### Stage 1: Prepare Stage
+def stage1_subgoal_constraint1(end_effector, keypoints):
+    """End-effector must reach the starting point."""
+    starting_point = compute_starting_point(keypoints)
+    cost = np.linalg.norm(end_effector - starting_point)
+    return cost
+
+### Stage 2: Accelerate Stage
+def stage2_subgoal_constraint1(end_effector, keypoints):
+    """End-effector must reach the release point."""
+    release_point, _, _ = compute_release_parameters(keypoints)
+    cost = np.linalg.norm(end_effector - release_point)
+    return cost
+
+def stage2_subgoal_constraint2(end_effector, keypoints):
+    """End-effector must reach the release angle."""
+    _, release_angle, _ = compute_release_parameters(keypoints)
+    # Compute the angle of the end-effector's velocity vector.
+    velocity_vector = end_effector - keypoints[8]  # Approximate velocity as displacement
+    angle = np.arctan2(velocity_vector[2], np.linalg.norm(velocity_vector[:2]))
+    cost = np.abs(angle - release_angle)
+    return cost
+
+def stage2_subgoal_constraint3(end_effector, keypoints):
+    """End-effector must reach the release speed."""
+    _, _, release_speed = compute_release_parameters(keypoints)
+    # Approximate speed as the magnitude of the velocity vector.
+    velocity_vector = end_effector - keypoints[8]
+    speed = np.linalg.norm(velocity_vector)
+    cost = np.abs(speed - release_speed)
+    return cost
+
+def stage2_path_constraint1(end_effector, keypoints):
+    """End-effector must move along the trajectory."""
+    starting_point = compute_starting_point(keypoints)
+    release_point, _, _ = compute_release_parameters(keypoints)
+    trajectory = compute_trajectory(starting_point, release_point)
+    # Find the closest point on the trajectory to the end-effector.
+    distances = np.linalg.norm(trajectory - end_effector, axis=1)
+    cost = np.min(distances)
+    return cost
+
+def stage2_path_constraint2(end_effector, keypoints):
+    """End-effector must move with certain speed or acceleration along the trajectory."""
+    # Approximate speed as the magnitude of the velocity vector.
+    velocity_vector = end_effector - keypoints[8]
+    speed = np.linalg.norm(velocity_vector)
+    _, _, release_speed = compute_release_parameters(keypoints)
+    cost = np.abs(speed - release_speed / 2)  # Ensure speed is reasonable during acceleration
+    return cost
+```

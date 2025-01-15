@@ -80,5 +80,5 @@ def stage1_path_constraint1(end_effector, keypoints):
 ```
 
 ## Query
-Query Task: "{instruction}"
+Query Task: "throw pen into the trash bin in front of the robot and table"
 Query Image:
