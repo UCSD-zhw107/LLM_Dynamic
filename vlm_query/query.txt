@@ -22,6 +22,7 @@ Please perform following steps:
 - The robot can only grasp one object at a time.
 - You may make a resonable assumption of the mass of the object based on the image of the environment and the keypoint positions.
 - You may use two keypoints to form a vector, which can be used to specify a rotation (by specifying the angle between the vector and a fixed axis).
+- You may focus on keypoints on objects and trash bin.
 - You may use multiple keypoints to specify a surface or volume.
 - The keypoints marked on the image start with index 0, same as the given argument `keypoints` array.
 - For a point `i` to be relative to another point `j`, the function should define an `offsetted_point` variable that has the delta added to keypoint `j and then calculate the norm of the xyz coordinates of the keypoint `i` and the `offsetted_point`.

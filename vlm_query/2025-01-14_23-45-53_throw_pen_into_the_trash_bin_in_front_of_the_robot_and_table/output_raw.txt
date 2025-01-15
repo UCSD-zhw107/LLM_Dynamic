@@ -1,0 +1,67 @@
+```python
+# Explanation:
+# The task is to throw the pen (keypoints 0-4) into the trash bin (keypoints 2 and 5).
+# - Starting constraints ensure the robot's end-effector is in a good position to throw the pen.
+# - Path/speed constraints define the trajectory and velocity needed to throw the pen into the bin.
+# - Release constraints ensure the pen is released at the correct point and speed for successful throwing.
+
+num_constraints = 5
+
+### Start constraint
+def start_constraint(end_effector, keypoints):
+    """
+    Ensure the end-effector is positioned 20 cm above the center of the trash bin
+    as the starting point for the throw.
+    """
+    trash_bin_center = keypoints[2]
+    offsetted_point = trash_bin_center + np.array([0, 0, 0.2])  # 20 cm above the bin center
+    cost = np.linalg.norm(end_effector - offsetted_point)
+    return cost
+
+### Path/speed constraints
+def path_constraint1(end_effector, keypoints):
+    """
+    Ensure the end-effector moves along a parabolic trajectory towards the trash bin.
+    The trajectory is defined by the bin's center and the pen's current position.
+    """
+    pen_center = (keypoints[0] + keypoints[4]) / 2  # Approximate center of the pen
+    trash_bin_center = keypoints[2]
+    mid_point = (pen_center + trash_bin_center) / 2 + np.array([0, 0, 0.1])  # Add height for parabolic path
+    cost = np.linalg.norm(end_effector - mid_point)
+    return cost
+
+def path_constraint2(end_effector, keypoints):
+    """
+    Ensure the end-effector achieves sufficient velocity to throw the pen into the bin.
+    The velocity is approximated based on the distance to the bin.
+    """
+    pen_center = (keypoints[0] + keypoints[4]) / 2
+    trash_bin_center = keypoints[2]
+    distance = np.linalg.norm(trash_bin_center - pen_center)
+    required_velocity = 2.0 * distance  # Assume a proportional velocity factor
+    current_velocity = np.linalg.norm(end_effector)  # Placeholder for actual velocity
+    cost = abs(current_velocity - required_velocity)
+    return cost
+
+### Release constraints
+def release_constraint1(end_effector, keypoints):
+    """
+    Ensure the pen is released when the end-effector is directly above the trash bin.
+    """
+    trash_bin_center = keypoints[2]
+    offsetted_point = trash_bin_center + np.array([0, 0, 0.1])  # Slightly above the bin
+    cost = np.linalg.norm(end_effector - offsetted_point)
+    return cost
+
+def release_constraint2(end_effector, keypoints):
+    """
+    Ensure the pen is released with a downward velocity towards the bin.
+    """
+    trash_bin_center = keypoints[2]
+    pen_center = (keypoints[0] + keypoints[4]) / 2
+    distance = np.linalg.norm(trash_bin_center - pen_center)
+    required_velocity = 1.5 * distance  # Assume a proportional velocity factor
+    current_velocity = np.linalg.norm(end_effector)  # Placeholder for actual velocity
+    cost = abs(current_velocity - required_velocity)
+    return cost
+```

@@ -1,0 +1,66 @@
+## Instructions
+Suppose you are controlling a robot to perform manipulation tasks. The manipulation task is given as an image of the environment, overlayed with keypoints marked with their indices. Assmue you have already controlled the robot to successfully grasp the object. 
+The goal of your task is to then control the robot to throw the grasped object into the trash bin in front of the robot by writing constraint functions in Python. Both object and trash bin are included in the image of environment, and both are overlayed with serveal keypoints. 
+Please perform following steps:
+- Wrtie "starting constraints", constraints that must be satisfied **before robot start to throw**. You may need to determine a resonable throwing start point (x,y,z) which faciliates successful throwing. Some examples:
+	- "the end-effector needs to be at (x,y,z) in the world frame as a throwing start point to faciliate further throwing"
+	- "the end-effector needs to be 20cm above the top of the trash bin"
+	- "the end-effector needs to be align with the center of the trash bin"
+- Write "path/speed constraints", constraints that must be satisfied **within the throwing process**. You need to propose resonable path for throwing as well as the speed(vx,vy,vz) that end-effector must achieve along the path to throw object into trash bin.
+- Write "release constraints", constraints that must be satisfied **before robot release the object**. You need to determine a resonable release point to release the object as well as the speed that the object must reach at the point of release.
+
+**Note:**
+- Each constraint takes a dummy end-effector point and a set of keypoints as input and returns a numerical cost, where the constraint is satisfied if the cost is smaller than or equal to zero.
+- For each stage, you may write 0 or more starting constraints, 0 or more path/speed constraints and 0 or more release constraints.
+- Avoid using "if" statements in your constraints.
+- You do not need to consider collision avoidance. Focus on what is necessary to complete the task.
+- Inputs to the constraints are as follows:
+  - `end_effector`: np.array of shape `(3,)` representing the end-effector position.
+  - `keypoints`: np.array of shape `(K, 3)` representing the keypoint positions.
+- You may apply the position of keypoints to compute the spacial relationship, for instance the lenght of pen, the distance between object and trash bin.
+- Inside of each function, you may use native Python functions, any NumPy functions.
+- The robot can only grasp one object at a time.
+- You may make a resonable assumption of the mass of the object based on the image of the environment and the keypoint positions.
+- You may use two keypoints to form a vector, which can be used to specify a rotation (by specifying the angle between the vector and a fixed axis).
+- You may focus on keypoints on objects and trash bin.
+- You may use multiple keypoints to specify a surface or volume.
+- The keypoints marked on the image start with index 0, same as the given argument `keypoints` array.
+- For a point `i` to be relative to another point `j`, the function should define an `offsetted_point` variable that has the delta added to keypoint `j and then calculate the norm of the xyz coordinates of the keypoint `i` and the `offsetted_point`.
+- If you would like to specify a location not marked by a keypoint, try using multiple keypoints to specify the location (e.g., you may take the mean of multiple keypoints if the desired location is in the center of those keypoints).
+
+**Structure your output in a single python code block as follows:**
+```python
+
+# Your explanation of how many constraints you have and what each constraint is about.
+# ...
+
+num_constraints = ?
+
+### start constraint (if any)
+def start_constraint(end_effector, keypoints):
+    """Put your explanation here."""
+    ...
+    return cost
+# Add more start constraints if needed
+...
+
+### path/speed constraints (if any)
+def path_constraint1(end_effector, keypoints):
+    """Put your explanation here."""
+    ...
+    return cost
+# Add more path constraints if needed
+...
+
+## release constraints (if any)
+def release_constraint1(end_effector, keypoints):
+    """Put your explanation here."""
+    ...
+    return cost
+# Add more release constraints if needed
+...
+
+
+## Query
+Query Task: "throw pen into the trash bin in front of the robot and table"
+Query Image:
