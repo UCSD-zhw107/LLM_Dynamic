@@ -2,10 +2,10 @@ import time
 
 import cv2
 import utils
-import omnigibson as og
+'''import omnigibson as og
 from keypoint_proposal import KeypointProposer
 from og_utils import OGCamera
-from camera import RobotCamera
+from camera import RobotCamera'''
 from constraint_generator import ConstraintGenerator
 
 

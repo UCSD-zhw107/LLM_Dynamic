@@ -1,0 +1,69 @@
+## Persona:
+Suppose you are controlling a fetching robot to perform object throwing tasks. The task is given as an image of the initial setup of the environment, overlayed with keypoints marked with their indices. You have access to following information 
+stored as python variables:
+- `end_effector`: np.array of shape `(3,)` representing the end-effector position at any moment.
+- `keypoints`: np.array of shape `(K, 3)` representing the keypoint positions at any moment. You can use indices of keypoints marked on the image to access their positions in this array. 
+- `g`: gravitational acceleration.
+- `mass`: mass of the object the robot will throw.
+
+## Task:
+Suppose you have already controlled the robot to grasp the object on the table top in the image and align it with the trash bin in front of the table at a specific time. Both `end_effector` and `keypoints` have been updated to reflect the correct positions at this moment.
+Now, you need to control the robot to throw the grasped object in to the trash bin, the `goal position p`: ```p = (p_x, p_y, p_z)```. During execution, the robot arm uncurls outward at high speed and release the object at the desired position and velocity to let object fall into trash bin along a projectile. 
+The goal of your task is to solve followings to ensure object eventually falls into the trash bin:
+- `release point r`: ```r = (r_x, r_y, r_z)```.
+- `release velocity`: ```v = (v_x, v_y, v_z)```.
+To simplify the problem, we make following constraints:
+- the direction of uncurling aligns with ```(v_x ,v_y)```.
+- throughout the execution, the gripper is oriented such that the axis between the fingertips is orthogonal to the plane of the intended aerial trajectory.
+- the aerial trajectory of a projectile is linear on the xy-horizontal-plane and in the same direction as ```v_xy = (v_x ,v_y)```, which means forces of aerodynamic drag orthogonal to ```vx_y``` are negligible.
+- the direction of ```v``` is angled 45 degree upwards in the direction of ```p```.
+You can not make any further constraints to simplify the problem.
+
+
+## Instructions
+You will solve this task in following steps:
+Step-1: First work out your own solution to the problem which should include all calculations and equations to solve this problem: ```r``` and ```v```. Enclose all your work for this step within XML tags (<solution> ...your solution.... </solution>).
+Step-2: Then summarize your solution as python codes. The python function should reflect all your calculations in step 1 and return ```r``` and ```v```. Enclose all your work for this step within XML tags (<python> ...your solution.... </python>).
+
+**Note:**
+- For both steps, you may free to use all accessible information listed in Persona section previously.
+- The keypoints marked on the image are fixed relative to the objects they are attached to, maintaining their correct relative positions on the object regardless of the object's movement or rotation.
+- The system will automatically keep track of the `end_effector` and `keypoints`, you can access the correct positions at any time during execution if needed.
+- For both steps, you are free to write 0 or more calculations and python code as long as you solve the problem.
+- You may not assume end-effector can reach the trash bin.
+- You do not need to consider collision avoidance. Focus on what is necessary to complete the task.
+- You may apply the position of keypoints to compute the spacial relationship, for instance the distance between object and trash bin at any moment, if needed.
+- Inside of each function, you may use native Python functions, any NumPy functions.
+- You may use two keypoints to form a vector, which can be used to specify a rotation (by specifying the angle between the vector and a fixed axis) if needed.
+- You may focus on keypoints on objects and trash bin.
+- You may use multiple keypoints to specify a surface or volume.
+- The keypoints marked on the image start with index 0, same as the given argument `keypoints` array.
+- For a point `i` to be relative to another point `j`, the function should define an `offsetted_point` variable that has the delta added to keypoint `j and then calculate the norm of the xyz coordinates of the keypoint `i` and the `offsetted_point`.
+- If you would like to specify a location not marked by a keypoint, try using multiple keypoints to specify the location (e.g., you may take the mean of multiple keypoints if the desired location is in the center of those keypoints).
+- If you think information or constraints are not sufficient to get solution, skip step 2, write a <insufficent> block in <solution> block and add additional information or constraint you need in that block.
+
+**Structure your output as follows:**
+<solution>
+
+# Your solutions and explanations for step 1.
+# ...
+
+# If insufficent information or constraints
+# <insufficent>
+# ....Explain what addition information or constraints you need and why.
+# </insufficent>
+
+</solution>
+
+<python>
+
+# Skip this section if insufficent information or constraints in previous step.
+
+# Your explanation of what given variable or information you used.
+# ...
+
+# Your python code and Your explantions.
+# ...
+
+</python>
+

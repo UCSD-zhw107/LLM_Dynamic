@@ -1,5 +1,5 @@
 import os
-import torch
+#import torch
 import yaml
 
 
@@ -33,9 +33,9 @@ def filter_points_by_bounds(points, bounds_min, bounds_max, strict=True):
     )
     return within_bounds_mask
 
-@staticmethod
+'''@staticmethod
 def to_numpy(data):
     if isinstance(data, torch.Tensor):
         return data.detach().cpu().numpy()
     else:
-        return data
+        return data'''

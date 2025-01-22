@@ -18,32 +18,64 @@ class ConstraintGenerator:
         self.config = config
         self.client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
         self.base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './vlm_query')
-        with open(os.path.join(self.base_dir, 'query.txt'), 'r') as f:
-            self.prompt_template = f.read()
+        if self.config['model'] == 'o1-preview':
+            with open(os.path.join(self.base_dir, 'query_o1.txt'), 'r') as f:
+                self.prompt_template = f.read()
+        else:
+            with open(os.path.join(self.base_dir, 'query_o.txt'), 'r') as f:
+                self.prompt_template = f.read()
 
     def _build_prompt(self, image_path, instruction):
         img_base64 = encode_image(image_path)
-        prompt_text = self.prompt_template.format(instruction=instruction)
+        #prompt_text = self.prompt_template.format(instruction=instruction)
+        prompt_text = self.prompt_template
+
         # save prompt
         with open(os.path.join(self.task_dir, 'prompt.txt'), 'w') as f:
             f.write(prompt_text)
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": self.prompt_template.format(instruction=instruction)
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{img_base64}"
+        # build message
+        if self.config['model'] == 'o1-preview':
+            messages = [
+                # User Role
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": self.prompt_template
                         }
-                    },
-                ]
-            }
-        ]
+                    ]
+                }
+            ]
+        else:
+            messages = [
+                # System Role
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": self.prompt_template
+                        }
+                    ]
+                },
+                # User Role
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": instruction
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{img_base64}"
+                            }
+                        },
+                    ]
+                }
+            ]
         return messages
 
 
@@ -64,11 +96,18 @@ class ConstraintGenerator:
         # build prompt
         messages = self._build_prompt(image_path, instruction)
         # stream back the response
-        stream = self.client.chat.completions.create(model=self.config['model'],
-                                                        messages=messages,
-                                                        temperature=self.config['temperature'],
-                                                        max_tokens=self.config['max_tokens'],
-                                                        stream=True)
+        stream = None
+        if self.config['model'] == 'o1-preview':
+            stream = self.client.chat.completions.create(model=self.config['model'],
+                                                            messages=messages,
+                                                            stream=True)
+        else:  
+            stream = self.client.chat.completions.create(model=self.config['model'],
+                                                messages=messages,
+                                                temperature=self.config['temperature'],
+                                                max_tokens=self.config['max_tokens'],
+                                                stream=True)
+
         output = ""
         start = time.time()
         for chunk in stream:

@@ -106,7 +106,7 @@ keypoint_proposer:
   seed: *seed
 
 constraint_generator:
-  model: chatgpt-4o-latest
+  model: o1-preview #o1-preview #chatgpt-4o-latest
   temperature: 0.0
   max_tokens: 2048
 
