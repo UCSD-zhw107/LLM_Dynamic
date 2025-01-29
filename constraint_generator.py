@@ -7,6 +7,7 @@ import parse
 import numpy as np
 import time
 from datetime import datetime
+from llm_utils import message_gpt_o, message_gpt_o1
 
 # Function to encode the image
 def encode_image(image_path):
@@ -35,48 +36,9 @@ class ConstraintGenerator:
             f.write(prompt_text)
         # build message
         if self.config['model'] == 'o1-preview':
-            messages = [
-                # User Role
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": self.prompt_template
-                        }
-                    ]
-                }
-            ]
+            return message_gpt_o1(self.prompt_template, None)
         else:
-            messages = [
-                # System Role
-                {
-                    "role": "system",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": self.prompt_template
-                        }
-                    ]
-                },
-                # User Role
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": instruction
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{img_base64}"
-                            }
-                        },
-                    ]
-                }
-            ]
-        return messages
+            return message_gpt_o(self.prompt_template, instruction, img_base64)
 
 
     def generate(self, instruction='throw pen into the trash bin in front of the robot and table'):

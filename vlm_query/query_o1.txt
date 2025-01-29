@@ -1,11 +1,70 @@
 ## Persona:
-Suppose you are controlling a fetching robot to perform object throwing tasks. You have access to following information stored as python variables:
-- `end_effector`: np.array of shape `(3,)` representing the end-effector position at any moment.
-- `trash_bin`: np.array of shape `(3,)` representing the goal position ```p = (p_x, p_y, p_z)```.
+Suppose you are controlling a fetching robot to dynamic manipulation task.  The manipulation task is given as an image of the environment, overlayed with keypoints marked with their indices, along with a query instruction. You have access to following information stored as python variables:
+- `eef_pose`: np.array of shape `(3,)` representing the end-effector position at any moment.
+- `keypoints`: np.array of shape `(K, 3)` representing the keypoint positions. The keypoints marked on the image start with index 0, same as the given argument `keypoints` array.
 - `g`: gravitational acceleration.
-- `mass`: mass of the object the robot will throw.
+- `eef_speed`: np.array of shape `(3,)` representing the end-effector velocity at any moment.
 
 ## Task:
+For each given task in the Query, you need to perform following steps:
+- Step 1: Decompose the task into stages/subtasks. Determine how many stages are involved in the task. Grasping must be an independent stage. Some examples:
+    - "pouring tea from teapot":
+        - 3 stages: "grasp teapot", "align teapot with cup opening", and "pour liquid"
+    - "put red block on top of blue block":
+        - 2 stages: "grasp red block", "drop the red block on top of blue block"
+    - "reorient bouquet and drop it upright into vase":
+        - 3 stages: "grasp bouquet", "reorient bouquet", and "keep upright and drop into vase"
+    - "throw the pen on the table into the trash bin":
+        - 3 stages: "grasp the pen", "move and reorient pen to a suitable pose to initiate the throw", "swing robot arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin"
+    - "strike the door with a hammer":
+        - 3 stages: "grasp the hammer", "move the hammer to a suitable pose to initiate the strike", "swing robot arm and hit the door with hammer head at desired speed and position"
+    - "give the t-shirt a quick shake to straighten it":
+        - 2 stages: "grasp one corner of the fabric", "swing the arm to give it a quick up and down shake"
+    - "shove the ball forward":
+        - 2 stage: "move the arm to align with the ball", "swing outward at high speed and hit the ball at desired speed and position"
+    - "hit the drum with drum stick":
+        - 3 stage: "grasp the drum stick", "move stick right above the drum and align them", "swing downard and hit the drum at desired speed and position"
+- Step 2: For each stage, write three kinds of constraints, "spatial sub-goal constraints", "dynamic sub-goal constraints" and "path constraints". The "spatial sub-goal constraints" are constraints on the spatial relationship such as position, angle, while the "dynamic sub-goal constraints" are constraints on the dynamic motion such as velocity. 
+Both "spatial sub-goal constraints" and "dynamic sub-goal constraints" are constraints that must be satisfied **at the end of the stage**, while the "path constraints" are constraints that must be satisfied **within the stage**. Some examples:
+    - "pouring liquid from teapot":
+        - "grasp teapot" stage:
+            - 1 spatial sub-goal constraints: "align the end-effector with the teapot handle"
+            - 0 dynamic sub-goal constraints
+            - 0 path constraints
+        - "align teapot with cup opening" stage:
+            - 1 spatial sub-goal constraints: "the teapot spout needs to be 10cm above the cup opening"
+            - 0 dynamic sub-goal constraints
+            - 2 path constraints: "the robot must still be grasping the teapot handle", "the teapot must stay upright to avoid spilling"
+        - "pour liquid" stage:
+            - 2 spatial sub-goal constraints: "the teapot spout needs to be 5cm above the cup opening", "the teapot spout must be tilted to pour liquid"
+            - 0 dynamic sub-goal constraints
+            - 2 path constraints: "the robot must still be grasping the teapot handle", "the teapot spout is directly above the cup opening"
+    - "put red block on top of blue block":
+        - "grasp red block" stage:
+            - 1 spatial sub-goal constraints: "align the end-effector with the red block"
+            - 0 dynamic sub-goal constraints
+            - 0 path constraints
+        - "drop the red block on top of blue block" stage:
+            - 1 spatial sub-goal constraints: "the red block is 10cm on top of the blue block"
+            - 0 dynamic sub-goal constraints
+            - 1 path constraints: "the robot must still be grasping the red block"
+    - "throw the pen on the table into the trash bin":
+        - "grasp the pen" stage:
+            - 1 spatial sub-goal constraints: "align the end-effector with the pen"
+            - 0 dynamic sub-goal constraints
+            - 0 path constraints
+        - "move and reorient pen to a suitable pose to initiate the throw" stage:
+            - 2 spatial sub-goal constraints: "aim and align the pen with the trash bin for an accurate throw", "incurl the arm to prepare for shooting"
+            - 0 dynamic sub-goal constraints
+            - 1 path constraints: "the robot must still be grasping the pen"
+        - "swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin"
+            - 2 spatial sub-goal constraints: "pen is released at a calculated position along a parabolic trajectory, ensuring it falls into the trash bin accurately", "pen is thrown at a 45-degree upward angle"
+            - 1 dynamic sub-goal constraints: "pen is released at a calculated velocity along a parabolic trajectory, ensuring it falls into the trash bin accurately"
+            - 2 path constraints: "the robot must still be grasping the pen", "the end_effector is oriented such that the axis between the fingertips is orthogonal to the plane of the intended aerial trajectory"
+
+
+    
+
 Suppose you have already controlled the robot to grasp the object on the table top in the image and align it with the trash bin in front of the table at a specific time. The `end_effector` has been updated to reflect the correct positions at this moment.
 Now, you need to control the robot to throw the grasped object in to the trash bin, the `goal position p`: ```p = (p_x, p_y, p_z)```. During execution, the robot arm uncurls outward at high speed and release the object at the desired position and velocity to let object fall into trash bin along a projectile. 
 The goal of your task is to solve followings to ensure object eventually falls into the trash bin:
