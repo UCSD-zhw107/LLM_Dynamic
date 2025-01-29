@@ -19,24 +19,19 @@ class ConstraintGenerator:
         self.config = config
         self.client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
         self.base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './vlm_query')
-        if self.config['model'] == 'o1-preview':
-            with open(os.path.join(self.base_dir, 'query_o1.txt'), 'r') as f:
-                self.prompt_template = f.read()
-        else:
-            with open(os.path.join(self.base_dir, 'query_o.txt'), 'r') as f:
-                self.prompt_template = f.read()
+        with open(os.path.join(self.base_dir, 'query_template.txt'), 'r') as f:
+            self.prompt_template = f.read()
 
     def _build_prompt(self, image_path, instruction):
         img_base64 = encode_image(image_path)
-        #prompt_text = self.prompt_template.format(instruction=instruction)
-        prompt_text = self.prompt_template
+        prompt_text = self.prompt_template.format(instruction=instruction)
 
         # save prompt
         with open(os.path.join(self.task_dir, 'prompt.txt'), 'w') as f:
             f.write(prompt_text)
         # build message
         if self.config['model'] == 'o1-preview':
-            return message_gpt_o1(self.prompt_template, None)
+            return message_gpt_o1(self.prompt_template, instruction)
         else:
             return message_gpt_o(self.prompt_template, instruction, img_base64)
 

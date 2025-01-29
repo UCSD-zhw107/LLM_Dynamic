@@ -1,0 +1,149 @@
+<solution>
+# Solution
+
+Task: "throw pen into the trash bin in front of the robot and table"
+
+**Step 1: Decompose the task into stages/subtasks**
+
+Based on the task, we can decompose it into three stages:
+
+**Stage 1: Grasp the pen**
+
+- **Spatial sub-goal constraints:**
+  - Align the end-effector with the pen.
+
+- **Dynamic sub-goal constraints:**
+  - None.
+
+- **Path constraints:**
+  - None.
+
+**Stage 2: Move and reorient the pen to a suitable pose to initiate the throw**
+
+- **Spatial sub-goal constraints:**
+  1. Aim and align the pen with the intended throwing direction (towards the trash bin at a 45-degree upward angle).
+  2. Incurl the arm to prepare for throwing.
+
+- **Dynamic sub-goal constraints:**
+  - None.
+
+- **Path constraints:**
+  - The robot must still be grasping the pen.
+
+**Stage 3: Swing robot arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin**
+
+- **Spatial sub-goal constraints:**
+  1. The pen is released at a calculated position along a parabolic trajectory, ensuring it falls into the trash bin accurately.
+  2. The pen is thrown at a 45-degree upward angle.
+
+- **Dynamic sub-goal constraints:**
+  1. The pen is released at a calculated velocity along a parabolic trajectory, ensuring it falls into the trash bin accurately.
+
+- **Path constraints:**
+  1. The robot must still be grasping the pen.
+  2. The pen should keep aligned with the intended throwing direction during execution.
+
+**Summarize keypoints to be grasped:**
+
+- The pen (keypoint index 0) needs to be grasped in stage 1.
+
+**Summarize at which stage the robot should release the keypoints:**
+
+- The pen (keypoint index 0) should be released at the end of stage 3.
+
+</solution>
+
+<python>
+# Number of stages involved in the task
+num_stages = 3
+
+### Stage 1 spatial sub-goal constraints
+def stage1_spatial_subgoal_constraint1(eef_pose, keypoints, eef_speed):
+    """Ensure the end-effector is aligned with the pen (keypoint 0). The cost is the distance between eef_pose and keypoints[0]."""
+    cost = np.linalg.norm(eef_pose - keypoints[0])
+    return cost
+
+### Stage 1 dynamic sub-goal constraints
+# None
+
+### Stage 1 path constraints
+# None
+
+### Stage 2 spatial sub-goal constraints
+def stage2_spatial_subgoal_constraint1(eef_pose, keypoints, eef_speed):
+    """Ensure the pen is aimed towards the trash bin at a 45-degree upward angle."""
+    # Vector from pen (eef_pose) to trash bin (keypoint 1)
+    vector_to_bin = keypoints[1] - eef_pose
+    # Desired throwing direction (unit vector at 45 degrees upward in x-z plane)
+    desired_throwing_vector = np.array([1, 0, 1]) / np.sqrt(2)
+    # Calculate the angle between the two vectors
+    cos_theta = np.dot(vector_to_bin, desired_throwing_vector) / (np.linalg.norm(vector_to_bin) * np.linalg.norm(desired_throwing_vector) + 1e-6)
+    cost = np.arccos(np.clip(cos_theta, -1.0, 1.0))  # Angle difference in radians
+    return cost
+
+### Stage 2 dynamic sub-goal constraints
+# None
+
+### Stage 2 path constraints
+def stage2_path_constraint1(eef_pose, keypoints, eef_speed):
+    """Ensure the robot is still grasping the pen (keypoint 0)."""
+    return get_grasping_cost_by_keypoint_idx(0)
+
+### Stage 3 spatial sub-goal constraints
+def stage3_spatial_subgoal_constraint1(eef_pose, keypoints, eef_speed):
+    """Ensure the pen is thrown at a 45-degree upward angle."""
+    # Desired throwing direction (unit vector at 45 degrees upward in x-z plane)
+    desired_throwing_vector = np.array([1, 0, 1]) / np.sqrt(2)
+    # Calculate the angle between the actual throwing velocity and the desired throwing direction
+    cos_theta = np.dot(eef_speed, desired_throwing_vector) / (np.linalg.norm(eef_speed) * np.linalg.norm(desired_throwing_vector) + 1e-6) 
+    cost = np.arccos(np.clip(cos_theta, -1.0, 1.0))  # Angle difference in radians
+    return cost
+
+### Stage 3 dynamic sub-goal constraints
+def stage3_dynamic_subgoal_constraint1(eef_pose, keypoints, eef_speed):
+    """Ensure the pen is released at a calculated velocity so it falls into the trash bin accurately."""
+    # Compute the expected landing position of the pen
+    g = 9.81  # Gravitational acceleration
+    # Time to reach the trash bin horizontally
+    delta_pos = keypoints[1] - eef_pose
+    v_horizontal = np.linalg.norm(eef_speed[0:2])
+    t = np.linalg.norm(delta_pos[0:2]) / (v_horizontal + 1e-6)
+    # Expected vertical position at time t
+    expected_z = eef_pose[2] + eef_speed[2] * t - 0.5 * g * t**2
+    # Cost is the difference between expected and actual z-position of trash bin
+    cost = np.abs(expected_z - keypoints[1][2])
+    return cost
+
+### Stage 3 path constraints
+def stage3_path_constraint1(eef_pose, keypoints, eef_speed):
+    """Ensure the robot is still grasping the pen during execution until release."""
+    return get_grasping_cost_by_keypoint_idx(0)
+
+def stage3_path_constraint2(eef_pose, keypoints, eef_speed):
+    """Ensure the pen keeps aligned with the intended throwing direction during execution."""
+    # Similar to spatial sub-goal constraint, ensure alignment during motion
+    # Vector from eef_pose to trash bin remains aligned with desired throwing direction
+    vector_to_bin = keypoints[1] - eef_pose
+    desired_throwing_vector = np.array([1, 0, 1]) / np.sqrt(2)
+    cos_theta = np.dot(vector_to_bin, desired_throwing_vector) / (np.linalg.norm(vector_to_bin) * np.linalg.norm(desired_throwing_vector) + 1e-6)
+    cost = np.arccos(np.clip(cos_theta, -1.0, 1.0))
+    return cost
+
+"""
+Summarize keypoints to be grasped in all grasping stages.
+The length of the list should be equal to the number of stages.
+For grasping stage, write the keypoint index. For non-grasping stage, write -1.
+"""
+grasp_keypoints = [0, -1, -1]
+
+"""
+Summarize at **the end of which stage** the robot should release the keypoints.
+The keypoint indices must appear in an earlier stage as defined in `grasp_keypoints`.
+Only release object when it's necessary to complete the task.
+The length of the list should be equal to the number of stages.
+If a keypoint is to be released at the end of a stage, write the keypoint index at the corresponding location. Otherwise, write -1.
+"""
+release_keypoints = [-1, -1, 0]
+
+```
+</python>

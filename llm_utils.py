@@ -11,7 +11,7 @@ def message_gpt_o1(prompt_template, instruction):
             "content": [
                 {
                     "type": "text",
-                    "text": prompt_template
+                    "text": prompt_template.format(instruction=instruction)
                 }
             ]
         }
@@ -29,7 +29,7 @@ def message_gpt_o(prompt_template, instruction, img_base64):
             "content": [
                 {
                     "type": "text",
-                    "text": prompt_template
+                    "text": prompt_template.format(instruction=instruction)
                 }
             ]
         },

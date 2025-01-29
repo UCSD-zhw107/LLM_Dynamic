@@ -17,3 +17,6 @@
 * At the end of which stage the robot should release the keypoints by defining the `release_keypoints` variable
 * Don't consider collision
 * Use multiple keypoint to specify a location without label (eg. mean of keypoints if location is in the center of those keypoints)
+
+## Env
+`$env:OPENAI_API_KEY="YOUR_OPENAI_API_KEY"`

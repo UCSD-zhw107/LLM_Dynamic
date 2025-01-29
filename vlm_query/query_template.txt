@@ -86,6 +86,7 @@ Step-2: Then summarize constraints as python functions. Enclose all your work fo
 **Note:**
 - Each constraint takes `eef_pose`, `keypoints` and  `eef_speed` as input and returns a numerical cost, where the constraint is satisfied if the cost is smaller than or equal to zero.
 - For each stage, you may write 0 or more spatial sub-goal constraints, 0 or more dynamic sub-goal constraints and 0 or more path constraints.
+- For dynamic sub-goal constraints, you can not simply assign a random velocity, you should compute the result based on information you have.
 - Avoid using "if" statements in your constraints.
 - Avoid using path constraints when manipulating deformable objects (e.g., clothing, towels).
 - You do not need to consider collision avoidance. Focus on what is necessary to complete the task.
