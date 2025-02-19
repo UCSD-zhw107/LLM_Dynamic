@@ -1,0 +1,201 @@
+<solution>
+
+**Step 1: Decompose the task into stages/subtasks**
+
+The task is "throw pen into the trash bin in front of the robot and table; you may use keypoint[4] for pen and keypoint[5] for trash bin".
+
+This task can be decomposed into the following stages:
+
+**Stage 1: Grasp the pen**
+
+- The robot needs to grasp the pen at keypoint[4].
+
+**Stage 2: Move and reorient pen to a suitable pose to initiate the throw**
+
+- The robot needs to move the pen to a suitable position and orientation to prepare for the throw. This involves pulling back the arm to gain momentum and aligning the pen with the intended throwing direction towards the trash bin (keypoint[5]).
+
+**Stage 3: Swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin**
+
+- The robot needs to swing its arm, releasing the pen at the correct position, angle, and velocity so that it follows a parabolic trajectory and lands in the trash bin at keypoint[5].
+
+**Step 2: For each stage, reasoning the dynamic system and writing constraints**
+
+**Stage 1: Grasp the pen**
+
+- Sub-goal constraints:
+
+    - Align the end-effector with the pen (keypoint[4]) to grasp it.
+
+- Path constraints: None
+
+**Stage 2: Move and reorient pen to a suitable pose to initiate the throw**
+
+- Sub-goal constraints:
+
+    - Move the pen to a prepared position along the throwing direction by pulling back the end-effector.
+
+- Path constraints:
+
+    - The robot must still be grasping the pen.
+
+**Stage 3: Swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin**
+
+- Sub-goal constraints:
+
+    - Ensure that when the pen is released from the current position with the current velocity, it will land in the trash bin (keypoint[5]) following a parabolic trajectory.
+
+    - Pen is thrown at a 45-degree upward angle for optimal distance.
+
+    - Pen is released at a calculated velocity along the intended throwing direction so that it reaches the trash bin.
+
+- Path constraints:
+
+    - The robot must still be grasping the pen.
+
+    - The pen should keep aligned with the intended throwing direction during the swing.
+
+**Reasoning about the dynamic system:**
+
+- To ensure the pen lands in the trash bin, we need to calculate the required release velocity and angle based on the distance between the release point and the trash bin, taking gravity into account.
+
+- The trajectory of the pen after release follows projectile motion under gravity.
+
+- The release position, velocity, and angle must be such that the pen's trajectory intersects the location of the trash bin.
+
+**Summary of grasping and releasing keypoints:**
+
+- Grasping the pen in Stage 1 (keypoint[4]).
+
+- Releasing the pen at the end of Stage 3 (keypoint[4]).
+
+</solution>
+
+<python>
+
+# Explanation of how many stages are involved in the task and what each stage is about.
+
+The task involves 3 stages:
+
+1. Grasp the pen (keypoint[4])
+
+2. Move and reorient pen to a suitable pose to initiate the throw
+
+3. Swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin (keypoint[5])
+
+num_stages = 3
+
+### Stage 1 sub-goal constraints
+
+def stage1_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Align the end-effector with the pen (keypoint[4]) to grasp it."""
+    grasp_threshold = 0.02  # 2 cm threshold for grasping
+    cost = np.linalg.norm(eef_pose - keypoints[4]) - grasp_threshold
+    return cost
+
+### Stage 1 path constraints
+
+# None
+
+### Stage 2 sub-goal constraints
+
+def stage2_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Move the pen to a prepared position along the throwing direction."""
+    # Direction vector from pen to trash bin
+    throw_dir = keypoints[5] - keypoints[4]
+    throw_dir = throw_dir / np.linalg.norm(throw_dir)
+
+    # Desired preparation distance (e.g., pull back by 0.3 meters)
+    prep_distance = 0.3  # 30 cm
+
+    # Desired end-effector position is initial pen position minus prep_distance along throw_dir
+    desired_eef_pose = keypoints[4] - prep_distance * throw_dir
+
+    cost = np.linalg.norm(eef_pose - desired_eef_pose)
+    return cost
+
+### Stage 2 path constraints
+
+def stage2_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """The robot must still be grasping the pen (keypoint[4])."""
+    return get_grasping_cost_by_keypoint_idx(4)
+
+### Stage 3 sub-goal constraints
+
+def stage3_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure that when the pen is released from the current position with the current velocity, it will land in the trash bin (keypoint[5]) following a parabolic trajectory."""
+    delta_pos = keypoints[5] - eef_pose
+
+    v0_x = eef_velocity[0]
+    v0_y = eef_velocity[1]
+    v0_z = eef_velocity[2]
+
+    v0_horizontal = np.sqrt(v0_x**2 + v0_y**2)
+    delta_horizontal = np.sqrt(delta_pos[0]**2 + delta_pos[1]**2)
+
+    if v0_horizontal == 0:
+        cost = 1000  # Cannot reach the target with zero horizontal velocity
+    else:
+        t = delta_horizontal / v0_horizontal
+        expected_z = eef_pose[2] + v0_z * t - 0.5 * g * t**2
+        delta_z = expected_z - keypoints[5][2]
+        cost = np.abs(delta_z)
+    return cost
+
+def stage3_subgoal_constraint2(eef_pose, keypoints, eef_velocity):
+    """Pen is thrown at a 45-degree upward angle."""
+    v0_horizontal = np.sqrt(eef_velocity[0]**2 + eef_velocity[1]**2)
+    v0_z = eef_velocity[2]
+
+    if v0_horizontal == 0 and v0_z == 0:
+        cost = 1000  # Cannot compute angle with zero velocity
+    else:
+        angle = np.arctan2(v0_z, v0_horizontal)  # Angle in radians
+        desired_angle = np.pi / 4  # 45 degrees in radians
+        cost = np.abs(angle - desired_angle)
+    return cost
+
+def stage3_subgoal_constraint3(eef_pose, keypoints, eef_velocity):
+    """Ensure the pen is released at a calculated velocity to reach the trash bin."""
+    v0 = np.linalg.norm(eef_velocity)
+    delta_pos = keypoints[5] - eef_pose
+    delta_horizontal = np.sqrt(delta_pos[0]**2 + delta_pos[1]**2)
+    if v0 == 0:
+        cost = 1000  # Cannot reach the target with zero initial speed
+    else:
+        theta = np.arctan2(eef_velocity[2], np.sqrt(eef_velocity[0]**2 + eef_velocity[1]**2))
+        R = (v0**2 * np.sin(2 * theta)) / g
+        cost = np.abs(R - delta_horizontal)
+    return cost
+
+### Stage 3 path constraints
+
+def stage3_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """The robot must still be grasping the pen (keypoint[4])."""
+    return get_grasping_cost_by_keypoint_idx(4)
+
+def stage3_path_constraint2(eef_pose, keypoints, eef_velocity):
+    """The pen should keep aligned with the intended throwing direction during execution."""
+    throw_dir = keypoints[5] - eef_pose
+    throw_dir_normalized = throw_dir / np.linalg.norm(throw_dir)
+    eef_velocity_normalized = eef_velocity / np.linalg.norm(eef_velocity)
+    cost = np.linalg.norm(throw_dir_normalized - eef_velocity_normalized)
+    return cost
+
+"""
+Summarize keypoints to be grasped in all grasping stages.
+The length of the list should be equal to the number of stages.
+For grasping stage, write the keypoint index. For non-grasping stage, write -1.
+"""
+grasp_keypoints = [4, -1, -1]
+
+"""
+Summarize at **the end of which stage** the robot should release the keypoints.
+The keypoint indices must appear in an earlier stage as defined in `grasp_keypoints` (i.e., a keypoint can only be released only if it has been grasped previously).
+Only release object when it's necessary to complete the task, e.g., drop bouquet in the vase.
+The length of the list should be equal to the number of stages.
+If a keypoint is to be released at the end of a stage, write the keypoint index at the corresponding location. Otherwise, write -1.
+"""
+release_keypoints = [-1, -1, 4]
+
+```
+</python>

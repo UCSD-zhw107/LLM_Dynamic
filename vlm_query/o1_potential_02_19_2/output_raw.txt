@@ -1,0 +1,256 @@
+<solution>
+
+# Step 1: Decompose the task into stages/subtasks.
+The task is to "throw pen into the trash bin in front of the robot and table, you may use keypoint[4] for pen and keypoint[5] for trash bin".
+
+**Stages:**
+1. **Stage 1: Grasp the pen**
+   - The robot needs to grasp the pen located at `keypoints[4]`.
+
+2. **Stage 2: Move and reorient pen to a suitable pose to initiate the throw**
+   - The robot moves the pen to a position suitable for throwing. This involves moving the end-effector (EEF) to an offset position along the negative of the intended throwing direction to prepare for the throw.
+
+3. **Stage 3: Swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin**
+   - The robot swings its arm to throw the pen towards the trash bin (`keypoints[5]`), releasing it at the right position and velocity so that it follows a parabolic trajectory into the bin.
+
+# Step 2: For each stage, reasoning the dynamic system and write constraint functions.
+
+## **Stage 1: Grasp the pen**
+
+**Sub-goal Constraints:**
+- **Constraint 1:** The end-effector must be aligned with the pen to grasp it.
+
+   *Mathematical Expression:*
+   \[
+   \text{cost} = \| \text{eef\_pose} - \text{keypoints}[4] \| - d_{\text{grasp}}
+   \]
+   Where \(d_{\text{grasp}}\) is a small threshold distance for grasping (e.g., 0.01 meters). The constraint is satisfied when the cost is less than or equal to zero.
+
+**Path Constraints:**
+- None for this stage.
+
+## **Stage 2: Move and reorient pen to a suitable pose to initiate the throw**
+
+**Sub-goal Constraints:**
+
+- **Constraint 1:** Move the pen (in EEF) to a position offset along the negative of the throwing direction to prepare for the throw.
+
+   *Calculations:*
+
+   - Calculate the throwing direction unit vector:
+     \[
+     \mathbf{v}_{\text{dir}} = \frac{\text{keypoints}[5] - \text{keypoints}[4]}{\| \text{keypoints}[5] - \text{keypoints}[4] \|}
+     \]
+   - Define the desired offset distance \(k\) (e.g., 0.1 meters).
+   - Calculate the desired EEF position:
+     \[
+     \text{desired\_eef\_pose} = \text{keypoints}[4] - k \cdot \mathbf{v}_{\text{dir}}
+     \]
+   - Formulate the constraint:
+     \[
+     \text{cost} = \| \text{eef\_pose} - \text{desired\_eef\_pose} \| - \epsilon
+     \]
+     Where \(\epsilon\) is a small tolerance.
+
+**Path Constraints:**
+
+- **Constraint 1:** The robot must still be grasping the pen.
+   - Use `get_grasping_cost_by_keypoint_idx(4)`.
+
+## **Stage 3: Swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin**
+
+**Sub-goal Constraints:**
+
+- **Constraint 1:** The pen is released at a calculated position and velocity so that it follows a parabolic trajectory and lands in the trash bin.
+
+   *Calculations:*
+
+   - Define the displacement components:
+     \[
+     \Delta x = \text{keypoints}[5][0] - \text{eef\_pose}[0]
+     \]
+     \[
+     \Delta y = \text{keypoints}[5][1] - \text{eef\_pose}[1]
+     \]
+     \[
+     \Delta z = \text{keypoints}[5][2] - \text{eef\_pose}[2]
+     \]
+   - Compute horizontal distance:
+     \[
+     \Delta s = \sqrt{(\Delta x)^2 + (\Delta y)^2}
+     \]
+   - Compute horizontal velocity magnitude:
+     \[
+     v_{\text{horizontal}} = \sqrt{\text{eef\_velocity}[0]^2 + \text{eef\_velocity}[1]^2}
+     \]
+   - Calculate time of flight:
+     \[
+     t = \frac{\Delta s}{v_{\text{horizontal}} + \epsilon}
+     \]
+     Where \(\epsilon\) is a small positive value to avoid division by zero.
+   - Predict the vertical position at time \(t\):
+     \[
+     z_{\text{predict}} = \text{eef\_pose}[2] + \text{eef\_velocity}[2] \cdot t - \frac{1}{2} g t^2
+     \]
+   - Formulate the constraint:
+     \[
+     \text{cost} = (z_{\text{predict}} - \text{keypoints}[5][2])^2 - \delta
+     \]
+     Where \(\delta\) is a small tolerance.
+
+- **Constraint 2:** The initial horizontal velocity vector must be aligned with the displacement vector to the trash bin.
+
+   *Mathematical Expression:*
+   \[
+   \text{cost} = (\text{eef\_velocity}[0] \cdot \Delta y - \text{eef\_velocity}[1] \cdot \Delta x)^2 - \delta
+   \]
+
+- **Constraint 3:** The pen is thrown at a 45-degree upward angle.
+
+   *Calculations:*
+
+   - Calculate total velocity magnitude:
+     \[
+     v_{\text{magnitude}} = \sqrt{\text{eef\_velocity}[0]^2 + \text{eef\_velocity}[1]^2 + \text{eef\_velocity}[2]^2}
+     \]
+   - Compute cosine of launch angle \(\theta\):
+     \[
+     \cos(\theta) = \frac{v_{\text{horizontal}}}{v_{\text{magnitude}} + \epsilon}
+     \]
+   - Desired cosine value for 45 degrees:
+     \[
+     \cos(45^\circ) = \frac{\sqrt{2}}{2}
+     \]
+   - Formulate the constraint:
+     \[
+     \text{cost} = \left( \cos(\theta) - \frac{\sqrt{2}}{2} \right)^2 - \delta
+     \]
+
+**Path Constraints:**
+
+- **Constraint 1:** The robot must still be grasping the pen until release.
+   - Use `get_grasping_cost_by_keypoint_idx(4)`.
+
+- **Constraint 2:** The pen should remain aligned with the intended throwing direction during execution.
+
+   *Mathematical Expression:*
+   \[
+   \text{cost} = (\text{eef\_velocity}[0] \cdot \Delta y - \text{eef\_velocity}[1] \cdot \Delta x)^2 - \delta
+   \]
+
+# Note:
+- The small tolerances \(\epsilon\) and \(\delta\) are introduced to avoid division by zero and to set acceptable thresholds for the constraints.
+- The gravitational acceleration \(g\) is used in the vertical motion equations.
+- Avoided using non-differentiable functions like `abs` by squaring the differences.
+
+# If insufficient information or constraints
+
+<insufficent>
+- **Additional Information Needed:**
+  - **Mass of the pen:** To accurately model the dynamics of the throw, the mass may influence the required force and velocity.
+  - **Size and shape of the trash bin:** To ensure the pen lands inside, dimensions are needed.
+  - **Air resistance:** Neglected in calculations but may affect the trajectory in a real scenario.
+- **Reasoning:**
+  - Precise dynamic calculations require these details to generate accurate constraints and ensure successful task completion.
+</insufficent>
+
+</solution>
+
+<python>
+
+# The task involves 3 stages:
+# Stage 1: Grasp the pen.
+# Stage 2: Move and reorient pen to a suitable pose to initiate the throw.
+# Stage 3: Swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin.
+
+num_stages = 3
+
+import numpy as np
+
+### Stage 1 sub-goal constraints
+def stage1_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Align the end-effector with the pen (keypoint[4]) for grasping."""
+    cost = np.linalg.norm(eef_pose - keypoints[4]) - 0.01  # 0.01 meters grasping threshold
+    return cost
+
+### Stage 1 path constraints
+# None needed for this stage
+
+### Stage 2 sub-goal constraints
+def stage2_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Move the pen to an offset position along the negative throwing direction to prepare for the throw."""
+    # Calculate throwing direction unit vector
+    direction_vector = keypoints[5] - keypoints[4]
+    direction_norm = np.linalg.norm(direction_vector) + 1e-6  # Add epsilon to avoid division by zero
+    unit_direction = direction_vector / direction_norm
+    # Desired offset position
+    k = 0.1  # 10 cm offset
+    desired_eef_pose = keypoints[4] - k * unit_direction
+    cost = np.linalg.norm(eef_pose - desired_eef_pose) - 0.01  # Small tolerance
+    return cost
+
+### Stage 2 path constraints
+def stage2_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """The robot must still be grasping the pen (keypoint[4])."""
+    return get_grasping_cost_by_keypoint_idx(4)
+
+### Stage 3 sub-goal constraints
+def stage3_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure the pen follows a parabolic trajectory to land in the trash bin."""
+    dx = keypoints[5][0] - eef_pose[0]
+    dy = keypoints[5][1] - eef_pose[1]
+    dz = keypoints[5][2] - eef_pose[2]
+    ds = np.sqrt(dx**2 + dy**2)
+    v_horizontal = np.sqrt(eef_velocity[0]**2 + eef_velocity[1]**2) + 1e-6  # Add epsilon
+    t = ds / v_horizontal
+    z_predict = eef_pose[2] + eef_velocity[2] * t - 0.5 * g * t**2
+    cost = (z_predict - keypoints[5][2])**2 - 1e-4  # Small tolerance delta
+    return cost
+
+def stage3_subgoal_constraint2(eef_pose, keypoints, eef_velocity):
+    """Ensure the horizontal velocity vector is aligned with the target direction."""
+    dx = keypoints[5][0] - eef_pose[0]
+    dy = keypoints[5][1] - eef_pose[1]
+    cost = (eef_velocity[0] * dy - eef_velocity[1] * dx)**2 - 1e-4  # Small tolerance delta
+    return cost
+
+def stage3_subgoal_constraint3(eef_pose, keypoints, eef_velocity):
+    """Throw the pen at a 45-degree upward angle."""
+    v_magnitude = np.sqrt(eef_velocity[0]**2 + eef_velocity[1]**2 + eef_velocity[2]**2) + 1e-6  # Add epsilon
+    v_horizontal = np.sqrt(eef_velocity[0]**2 + eef_velocity[1]**2)
+    cos_theta = v_horizontal / v_magnitude
+    desired_cos_theta = np.sqrt(2) / 2  # cos(45 degrees)
+    cost = (cos_theta - desired_cos_theta)**2 - 1e-4  # Small tolerance delta
+    return cost
+
+### Stage 3 path constraints
+def stage3_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """The robot must still be grasping the pen until release."""
+    # The constraint should be active until the pen is released at the end of this stage
+    return get_grasping_cost_by_keypoint_idx(4)
+
+def stage3_path_constraint2(eef_pose, keypoints, eef_velocity):
+    """The pen should keep aligned with the intended throwing direction during execution."""
+    dx = keypoints[5][0] - eef_pose[0]
+    dy = keypoints[5][1] - eef_pose[1]
+    cost = (eef_velocity[0] * dy - eef_velocity[1] * dx)**2 - 1e-4  # Small tolerance delta
+    return cost
+
+"""
+Summarize keypoints to be grasped in all grasping stages.
+The length of the list should be equal to the number of stages.
+For grasping stage, write the keypoint index. For non-grasping stage, write -1.
+"""
+grasp_keypoints = [4, -1, -1]
+
+"""
+Summarize at **the end of which stage** the robot should release the keypoints.
+The keypoint indices must appear in an earlier stage as defined in `grasp_keypoints`.
+Only release object when it's necessary to complete the task.
+If a keypoint is to be released at the end of a stage, write the keypoint index at the corresponding location.
+Otherwise, write -1.
+"""
+release_keypoints = [-1, -1, 4]
+
+```
+</python>

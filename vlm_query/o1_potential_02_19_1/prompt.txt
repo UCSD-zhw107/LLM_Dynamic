@@ -51,7 +51,7 @@ Some examples:
             - 2 sub-goal constraints: "aim and align the pen with the intended throwing direction", "incurl the eef from current position to prepare for shooting"
             - 1 path constraints: "the robot must still be grasping the pen"
         - "swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin" stage:
-            - 3 sub-goal constraints: "pen is released at a calculated position following a physically correct parabolic trajectory, ensuring it falls into the trash bin accurately", "pen is thrown at a 45-degree upward angle", "pen is released at a calculated velocity following a physically correct parabolic trajectory, ensuring it falls into the trash bin accurately"
+            - 3 sub-goal constraints: "pen is released at a calculated position along a parabolic trajectory, ensuring it falls into the trash bin accurately", "pen is thrown at a 45-degree upward angle", "pen is released at a calculated velocity along a parabolic trajectory, ensuring it falls into the trash bin accurately"
             - 2 path constraints: "the robot must still be grasping the pen", "the pen should keep aligned with the intended throwing direction during execution"
     - "hit the drum with drum stick":
         - "grasp the pen" stage:
@@ -76,8 +76,8 @@ Step-2: Then summarize constraint functions as python functions. Enclose all you
 - Each constraint takes `eef_pose`, `keypoints` and  `eef_velocity` as input and returns a numerical cost, where the constraint is satisfied if the cost is smaller than or equal to zero.
 - For each stage, you may write 0 or more sub-goal constraints and 0 or more path constraints.
 - For any tasks, you can not make assumption on the reachability of robot and the robot is not movable, for instance robot can not simply relesase the object right above target position for throwing tasks.
-- Once again for any tasks require dynamic motions, you must reason the dynamic system and ensure your constraints are physically correct.
-- Avoid using non-differentiable operations that introduce gradient discontinuities such as "if" statements or "abs" in your constraints since we will use constraints for trajectory optimization, try to work around them.
+- Once again for any tasks require dynamic motions, you must reason the dynamic system and build your answer on top of that.
+- Avoid using non-differentiable operations such as "if" statements or "abs" in your constraints since we will use constraints for trajectory optimization.
 - Avoid using path constraints when manipulating deformable objects (e.g., clothing, towels).
 - You do not need to consider collision avoidance. Focus on what is necessary to complete the task.
 - For any path constraint that requires the robot to be still grasping a keypoint `i`, you may use the provided function `get_grasping_cost_by_keypoint_idx` by calling `return get_grasping_cost_by_keypoint_idx(i)` where `i` is the index of the keypoint. 
@@ -154,5 +154,5 @@ release_keypoints = [?, ..., ?]
 </python>
 
 ## Query
-Query Task: "{instruction}"
+Query Task: "throw pen into the trash bin in front of the robot and table, you may use keypoint[4] for pen and keypoint[5] for trash bin"
 Query Image:

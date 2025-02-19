@@ -36,7 +36,7 @@ class ConstraintGenerator:
             return message_gpt_o(self.prompt_template, instruction, img_base64)
 
 
-    def generate(self, instruction='throw pen into the trash bin in front of the robot and table'):
+    def generate(self, instruction):
         """
         Args:
             img (np.ndarray): image of the scene (H, W, 3) uint8

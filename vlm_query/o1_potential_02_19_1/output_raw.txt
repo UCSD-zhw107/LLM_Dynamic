@@ -1,0 +1,191 @@
+<solution>
+
+# Step 1: Decompose the task into stages/subtasks.
+
+The given task is to "throw pen into the trash bin in front of the robot and table, you may use keypoint[4] for pen and keypoint[5] for trash bin".
+
+We can decompose this task into **3 stages**:
+
+1. **Grasp the pen**.
+
+2. **Move and reorient the pen to a suitable pose to initiate the throw**.
+
+3. **Swing the robot arm outward at high speed and release the pen at the desired speed and position to make it fall into the trash bin**.
+
+# Step 2: For each stage, reason about the dynamic system and write sub-goal and path constraints.
+
+## Stage 1: Grasp the pen
+
+### Sub-goal Constraints:
+
+- **Align the end-effector with the pen (keypoint[4])**: The end-effector should be positioned precisely at the pen's location to grasp it.
+
+### Path Constraints:
+
+- **None**: Grasping is an instantaneous action at the end of this stage.
+
+## Stage 2: Move and reorient the pen to a suitable pose to initiate the throw
+
+### Sub-goal Constraints:
+
+- **Retract the end-effector along the throwing direction to prepare for the throw**: The robot should pull back its arm along the intended throwing direction to gain momentum for the throw.
+
+### Path Constraints:
+
+- **The robot must still be grasping the pen**: The pen must remain grasped throughout this stage.
+
+## Stage 3: Swing the robot arm outward at high speed and release the pen at the desired speed and position to make it fall into the trash bin
+
+### Sub-goal Constraints:
+
+- **Release the pen at a calculated position and velocity to ensure it lands in the trash bin**: The release point and velocity must result in a projectile trajectory that lands the pen in the trash bin.
+
+### Path Constraints:
+
+- **The robot must still be grasping the pen until release**: The pen remains grasped until the release point.
+- **The pen should remain aligned with the intended throwing direction during execution**: The pen's orientation should align with the throwing path to ensure accuracy.
+
+# Calculations and Equations
+
+To ensure the pen lands in the trash bin, we need to model the projectile motion and compute the required release velocity and angle.
+
+- **Projectile Motion Equations**:
+
+  - Vertical motion:
+    \( \Delta z = v_{0z} t - \frac{1}{2} g t^2 \)
+
+  - Horizontal motion:
+    \( \Delta x = v_{0x} t \)
+    \( \Delta y = v_{0y} t \)
+
+- **Constraints**:
+
+  - **Discriminant for Time of Flight**:
+    \( \text{discriminant} = v_{0z}^2 - 2 g \Delta z \)
+
+    The discriminant must be non-negative to have real solutions for time.
+
+  - **Landing Position**:
+    The horizontal displacement should match the distance to the trash bin:
+    \( \sqrt{(\Delta x)^2 + (\Delta y)^2} = \text{distance to trash bin in XY plane} \)
+
+- **Cost Functions**:
+
+  - Penalize negative discriminant and time:
+    Use smooth functions (e.g., softplus) to ensure differentiability.
+
+  - Align the release velocity direction with the throwing direction.
+
+# Grasp and Release Keypoints
+
+- **grasp_keypoints = [4, -1, -1]**: Grasp the pen (keypoint[4]) in stage 1.
+- **release_keypoints = [-1, -1, 4]**: Release the pen at the end of stage 3.
+
+</solution>
+
+<python>
+
+# The task involves 3 stages:
+# Stage 1: Grasp the pen.
+# Stage 2: Move and reorient the pen to a suitable pose to initiate the throw.
+# Stage 3: Swing the robot arm outward at high speed and release the pen to make it fall into the trash bin.
+
+num_stages = 3
+
+import numpy as np
+
+### Stage 1 Sub-goal Constraints
+
+def stage1_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Align the end-effector with the pen (keypoint[4]). The cost is the Euclidean distance between the end-effector and the pen."""
+    cost = np.linalg.norm(eef_pose - keypoints[4])
+    return cost  # Constraint satisfied when cost <= 0
+
+### Stage 2 Sub-goal Constraints
+
+def stage2_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Retract the end-effector along the throwing direction to prepare for the throw."""
+    # Calculate the throwing direction (from pen to trash bin)
+    throwing_direction = keypoints[5] - keypoints[4]
+    throwing_direction /= np.linalg.norm(throwing_direction)
+    # Desired end-effector position (retracted along the throwing direction)
+    retract_distance = 0.2  # Retract by 20 cm
+    desired_eef_pose = keypoints[4] - retract_distance * throwing_direction
+    cost = np.linalg.norm(eef_pose - desired_eef_pose)
+    return cost
+
+### Stage 2 Path Constraints
+
+def stage2_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure the robot is still grasping the pen (keypoint[4])."""
+    return get_grasping_cost_by_keypoint_idx(4)
+
+### Stage 3 Sub-goal Constraints
+
+def stage3_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Release the pen at a calculated position and velocity so that it lands in the trash bin."""
+    g = 9.81  # Gravitational acceleration (m/s^2)
+    delta_z = keypoints[5][2] - eef_pose[2]
+    v0_z = eef_velocity[2]
+    a = -0.5 * g
+    b = v0_z
+    c = -delta_z
+    discriminant = b**2 - 4 * a * c
+
+    # Softplus function to penalize negative discriminant (ensures differentiability)
+    cost_discriminant = np.log(1 + np.exp(-discriminant))
+
+    # Calculate time of flight
+    sqrt_discriminant = np.sqrt(np.maximum(discriminant, 0))
+    t_f1 = (-b + sqrt_discriminant) / (2 * a)
+    t_f2 = (-b - sqrt_discriminant) / (2 * a)
+    t_f = np.maximum(t_f1, t_f2)
+
+    # Penalize negative time of flight
+    cost_time = np.log(1 + np.exp(-t_f))
+
+    # Calculate landing position
+    delta_x = eef_velocity[0] * t_f
+    delta_y = eef_velocity[1] * t_f
+    landing_point = np.array([
+        eef_pose[0] + delta_x,
+        eef_pose[1] + delta_y,
+        keypoints[5][2]
+    ])
+
+    # Cost is the distance between landing point and trash bin
+    cost_landing = np.linalg.norm(landing_point - keypoints[5])
+
+    # Total cost combines all components
+    cost = cost_discriminant + cost_time + cost_landing
+    return cost
+
+### Stage 3 Path Constraints
+
+def stage3_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure the robot is still grasping the pen (keypoint[4]) until release."""
+    return get_grasping_cost_by_keypoint_idx(4)
+
+def stage3_path_constraint2(eef_pose, keypoints, eef_velocity):
+    """The pen should remain aligned with the intended throwing direction during execution."""
+    # Calculate the intended throwing direction
+    throwing_direction = keypoints[5] - eef_pose
+    throwing_direction /= np.linalg.norm(throwing_direction)
+    # Calculate the direction of the end-effector velocity
+    velocity_direction = eef_velocity / np.linalg.norm(eef_velocity)
+    # Cost is based on the misalignment
+    cos_theta = np.dot(throwing_direction, velocity_direction)
+    cost = 1 - cos_theta  # Constraint satisfied when cost <= 0
+    return cost
+
+# Grasp keypoints for each stage (-1 indicates no grasping)
+grasp_keypoints = [4, -1, -1]
+
+# Release keypoints at the end of stages (-1 indicates no release)
+release_keypoints = [-1, -1, 4]
+
+</python>
+
+# Note:
+- The `get_grasping_cost_by_keypoint_idx(i)` function is assumed to be provided, which returns a cost value indicating if the keypoint `i` is being grasped.
+- All cost functions are designed to be differentiable, avoiding non-differentiable operations like `if` statements and `abs`.
