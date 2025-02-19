@@ -48,6 +48,12 @@ def main():
     cv2.waitKey(0)
     print('showing image, click on the window and press "ESC" to close and continue')
     cv2.destroyAllWindows()
+    
+    # Write initial keypoint
+    with open('initial_keypoint.txt', 'w') as file:
+         file.writelines(f'Keypoint: {keypoints}\n')
+         file.writelines(f'EEF Pose: {robot.get_eef_position()}\n')
+         file.writelines(f'EEF Orientation xyzw: {robot.get_eef_orientation()}\n')
 
     
     # Perform Task
