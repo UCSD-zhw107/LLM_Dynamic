@@ -23,7 +23,7 @@ For each given task in the Query, you need to perform following steps:
     - "shove the ball forward":
         - 2 stage: "move the arm to align with the ball", "swing outward at high speed and hit the ball at desired speed and position"
     - "hit the drum with drum stick":
-        - 3 stage: "grasp the drum stick", "move stick right above the drum and align them", "swing downard and hit the drum at desired speed and position"
+        - 3 stage: "grasp the drum stick", "move drumstick tip right above the drum and align them", "swing downard and hit the drum at desired speed and position"
 - Step 2: For each stage, reasoning the dynamic system and write two kinds of constraint functions, "sub-goal constraints", "path constraints". The "sub-goal constraints" are constraints that must be satisfied **at the end of the stage**, while the "path constraints" are constraints that must be satisfied **within the stage**. 
 Some examples:
     - "pouring liquid from teapot":
@@ -58,11 +58,11 @@ Some examples:
             - 1 sub-goal constraints: "align the end-effector with the drum stick"
             - 0 path constraints
         - "move stick right above the drum and align them" stage:
-            - 2 sub-goal constraints: "the stick needs to be 30cm above the drum", "the stick is align with the intended swinging direction"
+            - 2 sub-goal constraints: "the drumstick tip needs to be 15cm above the drum", "the drumstick tip is align with the intended swinging direction"
             - 1 path constraints: "the robot must still be grasping the pen"
         - "swing downard and hit the drum at desired speed and position" stage:
             - 2 sub-goal constraints: "stick should hit the drum at certain point on the drum", "stick should hit the drum with certain velocity"
-            - 2 path constraints: "the robot must still be grasping the pen", "the stick is align with the intended swinging direction during execution"
+            - 2 path constraints: "the robot must still be grasping the pen", "the drumstick tip is align with the intended swinging direction during execution"
 - Summarize keypoints to be grasped in all grasping stages by defining the `grasp_keypoints` variable.
 - Summarize at the end of which stage the robot should release the keypoints by defining the `release_keypoints` variable.
 
