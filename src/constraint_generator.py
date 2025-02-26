@@ -36,7 +36,7 @@ class ConstraintGenerator:
             return message_gpt_o(self.prompt_template, instruction, img_base64)
 
 
-    def generate(self, instruction):
+    def generate(self, instruction, task_name):
         """
         Args:
             img (np.ndarray): image of the scene (H, W, 3) uint8
@@ -49,7 +49,7 @@ class ConstraintGenerator:
         self.task_dir = os.path.join(self.base_dir, fname)
         os.makedirs(self.task_dir, exist_ok=True)
         # image path
-        image_path = os.path.join(self.base_dir, 'query.png')
+        image_path = os.path.join(self.base_dir, task_name, 'query.png')
         # build prompt
         messages = self._build_prompt(image_path, instruction)
         # stream back the response

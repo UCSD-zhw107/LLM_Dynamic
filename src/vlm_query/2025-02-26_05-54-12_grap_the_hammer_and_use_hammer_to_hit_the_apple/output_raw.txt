@@ -1,0 +1,84 @@
+<solution>
+
+### Step 1: Decomposing the task into stages
+
+The task consists of two main stages:
+
+1. **Grasp the hammer**  
+   - The robot needs to align its end-effector with the hammer handle and grasp it.
+
+2. **Swing the hammer to hit the apple**  
+   - The robot needs to move the hammer to a suitable position to initiate the swing.
+   - The robot then swings the hammer at a suitable velocity and direction to hit the apple.
+
+---
+
+### Step 2: Defining constraints
+
+#### **Stage 1: Grasp the hammer**
+- **Sub-goal constraint:**
+  - The end-effector must align with the hammer handle (keypoint `2`).
+
+#### **Stage 2: Swing the hammer to hit the apple**
+- **Sub-goal constraints:**
+  - The hammer head (keypoint `4`) should be positioned at a suitable height and distance from the apple (keypoint `0`) before the swing.
+  - The hammer should be aligned with the intended swinging direction.
+
+- **Path constraints:**
+  - The robot must still be grasping the hammer handle (keypoint `2`).
+  - The hammer head (keypoint `4`) should follow a trajectory that ensures it impacts the apple with sufficient force.
+
+---
+
+### Step 3: Summarizing keypoints to be grasped and released
+
+- The robot grasps the hammer handle (keypoint `2`) in stage 1.
+- The robot does not need to release the hammer after hitting the apple.
+
+</solution>
+
+<python>
+
+num_stages = 2
+
+### Stage 1: Grasp the hammer
+def stage1_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure the end-effector is aligned with the hammer handle (keypoint 2)."""
+    hammer_handle = keypoints[2]
+    cost = np.linalg.norm(eef_pose - hammer_handle)
+    return cost
+
+### Stage 2: Swing the hammer to hit the apple
+def stage2_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure the hammer head (keypoint 4) is positioned at a suitable height and distance from the apple (keypoint 0) before the swing."""
+    hammer_head = keypoints[4]
+    apple = keypoints[0]
+    desired_offset = np.array([0.1, 0.1, 0.2])  # Example offset for a good striking position
+    offsetted_position = apple + desired_offset
+    cost = np.linalg.norm(hammer_head - offsetted_position)
+    return cost
+
+def stage2_subgoal_constraint2(eef_pose, keypoints, eef_velocity):
+    """Ensure the hammer is aligned with the intended swinging direction."""
+    hammer_handle = keypoints[2]
+    hammer_head = keypoints[4]
+    swing_direction = hammer_head - hammer_handle
+    desired_swing_direction = np.array([1, 0, 0])  # Example: Swinging along the x-axis
+    cost = np.linalg.norm(swing_direction - desired_swing_direction)
+    return cost
+
+def stage2_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """Ensure the robot is still grasping the hammer handle (keypoint 2)."""
+    return get_grasping_cost_by_keypoint_idx(2)
+
+def stage2_path_constraint2(eef_pose, keypoints, eef_velocity):
+    """Ensure the hammer head (keypoint 4) follows a trajectory that ensures it impacts the apple with sufficient force."""
+    hammer_head_velocity = eef_velocity  # Assuming the hammer head moves with the end-effector
+    required_impact_velocity = np.array([2.0, 0, 0])  # Example: High velocity in x-direction
+    cost = np.linalg.norm(hammer_head_velocity - required_impact_velocity)
+    return cost
+
+grasp_keypoints = [2, -1]
+release_keypoints = [-1, -1]
+
+</python>

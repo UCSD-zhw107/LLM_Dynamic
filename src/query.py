@@ -14,4 +14,4 @@ config_path = './config/config.yaml'
 global_config = utils.get_config(config_path=config_path)
 constraint_generator = ConstraintGenerator(global_config['constraint_generator'])
 
-constraint_generator.generate(instruction='throw pen into the trash bin in front of the robot and table, you may use keypoint[4] for pen and keypoint[5] for trash bin')
+constraint_generator.generate(instruction='grap the hammer and use hammer to hit the apple, you can use keypoint[4] as hammer head, keypoint[2] as hammer handle and keypoint[0] as apple ', task_name='hit_apple')

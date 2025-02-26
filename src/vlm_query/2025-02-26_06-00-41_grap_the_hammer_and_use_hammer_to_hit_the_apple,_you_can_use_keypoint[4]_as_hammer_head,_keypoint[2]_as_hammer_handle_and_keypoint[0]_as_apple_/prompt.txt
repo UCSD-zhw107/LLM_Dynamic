@@ -1,0 +1,158 @@
+## Persona:
+Suppose you are controlling a fetching robot to dynamic manipulation task.  The manipulation task is given as an image of the environment, overlayed with keypoints marked with their indices, along with a query instruction. You have access to following information stored as python variables:
+- `eef_pose`: np.array of shape `(3,)` representing the end-effector position at any moment.
+- `keypoints`: np.array of shape `(K, 3)` representing the keypoint positions. The keypoints marked on the image start with index 0, same as the given argument `keypoints` array.
+- `g`: gravitational acceleration.
+- `eef_velocity`: np.array of shape `(3,)` representing the end-effector velocity at any moment.
+
+## Task:
+For each given task in the Query, you need to perform following steps:
+- Step 1: Decompose the task into stages/subtasks. Determine how many stages are involved in the task. Grasping must be an independent stage. Some examples:
+    - "pouring tea from teapot":
+        - 3 stages: "grasp teapot", "align teapot with cup opening", and "pour liquid"
+    - "put red block on top of blue block":
+        - 2 stages: "grasp red block", "drop the red block on top of blue block"
+    - "reorient bouquet and drop it upright into vase":
+        - 3 stages: "grasp bouquet", "reorient bouquet", and "keep upright and drop into vase"
+    - "throw the pen on the table into the trash bin":
+        - 3 stages: "grasp the pen", "move and reorient pen to a suitable pose to initiate the throw", "swing robot arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin"
+    - "strike the door with a hammer":
+        - 3 stages: "grasp the hammer", "move the hammer to a suitable pose to initiate the strike", "swing robot arm and hit the door with hammer head at desired speed and position"
+    - "give the t-shirt a quick shake to straighten it":
+        - 2 stages: "grasp one corner of the fabric", "swing the arm to give it a quick up and down shake"
+    - "shove the ball forward":
+        - 2 stage: "move the arm to align with the ball", "swing outward at high speed and hit the ball at desired speed and position"
+    - "hit the drum with drum stick":
+        - 3 stage: "grasp the drum stick", "move drumstick tip right above the drum and align them", "swing downard and hit the drum at desired speed and position"
+- Step 2: For each stage, reasoning the dynamic system and write two kinds of constraint functions, "sub-goal constraints", "path constraints". The "sub-goal constraints" are constraints that must be satisfied **at the end of the stage**, while the "path constraints" are constraints that must be satisfied **within the stage**. 
+Some examples:
+    - "pouring liquid from teapot":
+        - "grasp teapot" stage:
+            - 1 sub-goal constraints: "align the end-effector with the teapot handle"
+            - 0 path constraints
+        - "align teapot with cup opening" stage:
+            - 1 sub-goal constraints: "the teapot spout needs to be 10cm above the cup opening"
+            - 2 path constraints: "the robot must still be grasping the teapot handle", "the teapot must stay upright to avoid spilling"
+        - "pour liquid" stage:
+            - 2 sub-goal constraints: "the teapot spout needs to be 5cm above the cup opening", "the teapot spout must be tilted to pour liquid"
+            - 2 path constraints: "the robot must still be grasping the teapot handle", "the teapot spout is directly above the cup opening"
+    - "put red block on top of blue block":
+        - "grasp red block" stage:
+            - 1 sub-goal constraints: "align the end-effector with the red block"
+            - 0 path constraints
+        - "drop the red block on top of blue block" stage:
+            - 1 sub-goal constraints: "the red block is 10cm on top of the blue block"
+            - 1 path constraints: "the robot must still be grasping the red block"
+    - "throw the pen on the table into the trash bin":
+        - "grasp the pen" stage:
+            - 1 sub-goal constraints: "align the end-effector with the pen"
+            - 0 path constraints
+        - "move and reorient pen to a suitable pose to initiate the throw" stage:
+            - 2 sub-goal constraints: "aim and align the pen with the intended throwing direction", "incurl the eef from current position to prepare for shooting"
+            - 1 path constraints: "the robot must still be grasping the pen"
+        - "swing arm outward at high speed and release the pen at desired speed and position to make it fall into the trash bin" stage:
+            - 3 sub-goal constraints: "pen is released at a calculated position following a physically correct parabolic trajectory, ensuring it falls into the trash bin accurately", "pen is thrown at a 45-degree upward angle", "pen is released at a calculated velocity following a physically correct parabolic trajectory, ensuring it falls into the trash bin accurately"
+            - 2 path constraints: "the robot must still be grasping the pen", "the pen should keep aligned with the intended throwing direction during execution"
+    - "hit the drum with drum stick":
+        - "grasp the pen" stage:
+            - 1 sub-goal constraints: "align the end-effector with the drum stick"
+            - 0 path constraints
+        - "move stick right above the drum and align them" stage:
+            - 2 sub-goal constraints: "the drumstick tip needs to be 15cm above the drum", "the drumstick tip is align with the intended swinging direction"
+            - 1 path constraints: "the robot must still be grasping the pen"
+        - "swing downard and hit the drum at desired speed and position" stage:
+            - 2 sub-goal constraints: "stick should hit the drum at certain point on the drum", "stick should hit the drum with certain velocity"
+            - 2 path constraints: "the robot must still be grasping the pen", "the drumstick tip is align with the intended swinging direction during execution"
+- Summarize keypoints to be grasped in all grasping stages by defining the `grasp_keypoints` variable.
+- Summarize at the end of which stage the robot should release the keypoints by defining the `release_keypoints` variable.
+
+
+## Instructions
+You will solve this task in following steps:
+Step-1: First work out your own solution to the problem which should include all thought process, calculations and equations. Enclose all your work for this step within XML tags (<solution> ...your solution.... </solution>).
+Step-2: Then summarize constraint functions as python functions. Enclose all your work for this step within XML tags (<python> ...your solution.... </python>).
+
+**Note:**
+- Each constraint takes `eef_pose`, `keypoints` and  `eef_velocity` as input and returns a numerical cost, where the constraint is satisfied if the cost is smaller than or equal to zero.
+- For each stage, you may write 0 or more sub-goal constraints and 0 or more path constraints.
+- For any tasks, you can not make assumption on the reachability of robot and the robot is not movable, for instance robot can not simply relesase the object right above target position for throwing tasks.
+- Once again for any tasks require dynamic motions, you must reason the dynamic system and ensure your constraints are physically correct.
+- Avoid using non-differentiable operations that introduce gradient discontinuities such as "if" statements or "abs" in your constraints since we will use constraints for trajectory optimization, try to work around them.
+- Avoid using path constraints when manipulating deformable objects (e.g., clothing, towels).
+- You do not need to consider collision avoidance. Focus on what is necessary to complete the task.
+- For any path constraint that requires the robot to be still grasping a keypoint `i`, you may use the provided function `get_grasping_cost_by_keypoint_idx` by calling `return get_grasping_cost_by_keypoint_idx(i)` where `i` is the index of the keypoint. 
+- Inside of each function, you may use native Python functions, any NumPy functions, and the provided `get_grasping_cost_by_keypoint_idx` function.
+- For grasping stage, you should only write one sub-goal constraint that associates the end-effector with a keypoint. No path constraints are needed.
+- In order to move a keypoint, its associated object must be grasped in one of the previous stages.
+- The robot can only grasp one object at a time.
+- Grasping must be an independent stage from other stages.
+- You may use two keypoints to form a vector, which can be used to specify a rotation (by specifying the angle between the vector and a fixed axis).
+- You may use multiple keypoints to specify a surface or volume.
+- The keypoints marked on the image start with index 0, same as the given argument `keypoints` array.
+- For a point `i` to be relative to another point `j`, the function should define an `offsetted_point` variable that has the delta added to keypoint `j and then calculate the norm of the xyz coordinates of the keypoint `i` and the `offsetted_point`.
+- If you would like to specify a location not marked by a keypoint, try using multiple keypoints to specify the location (e.g., you may take the mean of multiple keypoints if the desired location is in the center of those keypoints).
+- If you think information are not sufficient to get solution, skip step 2, write a <insufficent> block in <solution> block and add additional information or constraint you need in that block.
+
+**Structure your output as follows:**
+<solution>
+
+# Your solutions and explanations for step 1.
+# ...
+
+# If insufficent information or constraints
+# <insufficent>
+# ....Explain what addition information or constraints you need and why.
+# </insufficent>
+
+</solution>
+
+<python>
+
+# Skip this section if insufficent information or constraints in previous step.
+
+# Your explanation of how many stages are involved in the task and what each stage is about.
+# ...
+
+num_stages = ?
+
+### stage 1 sub-goal constraints (if any)
+def stage1_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """Put your explanation here."""
+    ...
+    return cost
+# Add more sub-goal constraints if needed
+...
+
+### stage 1 path constraints (if any)
+def stage1_path_constraint1(eef_pose, keypoints, eef_speed):
+    """Put your explanation here."""
+    ...
+    return cost
+# Add more path constraints if needed
+...
+
+# repeat for more stages
+...
+
+"""
+Summarize keypoints to be grasped in all grasping stages.
+The length of the list should be equal to the number of stages.
+For grapsing stage, write the keypoint index. For non-grasping stage, write -1.
+"""
+grasp_keypoints = [?, ..., ?]
+
+"""
+Summarize at **the end of which stage** the robot should release the keypoints.
+The keypoint indices must appear in an earlier stage as defined in `grasp_keypoints` (i.e., a keypoint can only be released only if it has been grasped previously).
+Only release object when it's necessary to complete the task, e.g., drop bouquet in the vase.
+The length of the list should be equal to the number of stages.
+If a keypoint is to be released at the end of a stage, write the keypoint index at the corresponding location. Otherwise, write -1.
+"""
+release_keypoints = [?, ..., ?]
+
+```
+</python>
+
+## Query
+Query Task: "grap the hammer and use hammer to hit the apple, you can use keypoint[4] as hammer head, keypoint[2] as hammer handle and keypoint[0] as apple "
+Query Image:
