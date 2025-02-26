@@ -5,7 +5,9 @@ import utils
 import omnigibson as og
 from keypoint_proposal import KeypointProposer
 from og_utils import OGCamera
-from src.camera import RobotCamera
+from camera import RobotCamera
+from pynput import keyboard
+import numpy as np
 
 def initialize_cameras(og_env,cam_config):
         """
@@ -19,15 +21,43 @@ def initialize_cameras(og_env,cam_config):
         return cams
 
 
+def init_eef_pose():
+    action = np.zeros(12)  
+    action[4:7] = [0.0, -0.2, 0.0]  
+    action[7:10] = [0.0, 0.0, 0.0] 
+    action[10:] = [0.0, 0.0]
+    return action
+
+
+running = True
+def on_press(key):
+    global running
+    if key == keyboard.Key.esc:
+        print("ESC pressed, exiting loop...")
+        running = False
+
 def main():
     config_path = './config/config.yaml'
-    scene_path = './config/throwing/scene.json'
+    scene_path = './config/hit_apple/scene.json'
     global_config = utils.get_config(config_path=config_path)
     env_config = global_config['env']
     env_config['scene']['scene_file'] = scene_path
     og_env = og.Environment(dict(scene=env_config['scene'], robots=[env_config['robot']['robot_config']], env=env_config['og_sim']))
     og_env.scene.update_initial_state()
     for _ in range(10): og.sim.step()
+
+
+
+
+
+    # Listen Keyboard
+    key_listener = keyboard.Listener(on_press=on_press)
+    key_listener.start()
+
+    # Set Initial EEF position
+    init_eef = init_eef_pose()
+    for _ in range(20):
+        og_env.step(init_eef)
 
     # Robot
     robot = og_env.robots[0]
@@ -57,12 +87,16 @@ def main():
 
     
     # Perform Task
-    og_env.reset()
-    for _ in range(1000):
+    while running:
         #obs, _, _, _, _ = og_env.step([0.0] * action_dim)
         og.sim.step()
         time.sleep(0.1)
-    
+
+    if key_listener.is_alive():
+        key_listener.stop()
+        key_listener.join()
+
+    og_env.close()
     og.shutdown()
 
     
