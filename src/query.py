@@ -10,7 +10,7 @@ from constraint_generator import ConstraintGenerator
 
 
 
-config_path = './config.yaml'
+config_path = './config/config.yaml'
 global_config = utils.get_config(config_path=config_path)
 constraint_generator = ConstraintGenerator(global_config['constraint_generator'])
 

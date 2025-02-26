@@ -20,8 +20,8 @@ def initialize_cameras(og_env,cam_config):
 
 
 def main():
-    config_path = './config.yaml'
-    scene_path = './scene.json'
+    config_path = './config/config.yaml'
+    scene_path = './config/throwing/scene.json'
     global_config = utils.get_config(config_path=config_path)
     env_config = global_config['env']
     env_config['scene']['scene_file'] = scene_path
