@@ -5,7 +5,7 @@ import utils
 import omnigibson as og
 from keypoint_proposal import KeypointProposer
 from og_utils import OGCamera
-from camera import RobotCamera
+from src.camera import RobotCamera
 
 def initialize_cameras(og_env,cam_config):
         """
