@@ -154,5 +154,5 @@ release_keypoints = [?, ..., ?]
 </python>
 
 ## Query
-Query Task: "{instruction}"
+Query Task: "grap the hammer and use hammer to hit the apple, you can use keypoint[4] as hammer head, keypoint[2] as hammer handle and keypoint[0] as apple "
 Query Image:

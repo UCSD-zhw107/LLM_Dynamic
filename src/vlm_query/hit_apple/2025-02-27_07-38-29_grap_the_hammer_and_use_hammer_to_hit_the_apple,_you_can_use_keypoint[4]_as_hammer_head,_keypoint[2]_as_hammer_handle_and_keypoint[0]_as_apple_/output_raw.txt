@@ -1,0 +1,187 @@
+<solution>
+
+# Solution
+
+**Step 1: Decompose the task into stages**
+
+1. **Stage 1**: Grasp the hammer handle.
+    - Sub-goal constraint:
+        - Align the end-effector with the hammer handle (keypoint[2]).
+    - Path constraints:
+        - None.
+
+2. **Stage 2**: Move the hammer to a suitable pose to hit the apple.
+    - Sub-goal constraints:
+        - The hammer head (keypoint[4]) needs to be 10 cm above the apple (keypoint[0]) along the z-axis.
+        - The hammer should be aligned vertically to ensure a straight downward swing.
+    - Path constraints:
+        - The robot must still be grasping the hammer handle (keypoint[2]).
+
+3. **Stage 3**: Swing the hammer to hit the apple.
+    - Sub-goal constraints:
+        - The hammer head (keypoint[4]) must contact the apple (keypoint[0]).
+        - The hammer head must have sufficient velocity towards the apple at the moment of impact.
+    - Path constraints:
+        - The robot must still be grasping the hammer handle (keypoint[2]).
+        - The hammer head must remain aligned with the intended swinging direction throughout the motion.
+
+**Step 2: Reasoning the dynamic system and writing constraints**
+
+- For the grasping stage, ensure the end-effector is aligned with the hammer handle.
+- For moving the hammer, position the hammer head above the apple and align it vertically.
+- For swinging the hammer, ensure the hammer head impacts the apple with sufficient velocity.
+- Throughout manipulation, ensure the robot continues grasping the hammer handle.
+
+**Constraints:**
+
+- **Stage 1 Sub-goal Constraint:**
+    - Align end-effector with hammer handle (keypoint[2]).
+
+- **Stage 2 Sub-goal Constraints:**
+    - Hammer head (keypoint[4]) is 10 cm above apple (keypoint[0]) along the z-axis.
+    - Hammer is aligned vertically (hammer vector is parallel to z-axis).
+
+- **Stage 2 Path Constraint:**
+    - Robot must still be grasping hammer handle (keypoint[2]).
+
+- **Stage 3 Sub-goal Constraints:**
+    - Hammer head (keypoint[4]) contacts apple (keypoint[0]).
+    - Hammer head has sufficient velocity towards apple at impact.
+
+- **Stage 3 Path Constraints:**
+    - Robot must still be grasping hammer handle (keypoint[2]).
+    - Hammer head remains aligned with swinging direction throughout motion.
+
+**Grasp and Release Keypoints:**
+
+- `grasp_keypoints`: `[2, -1, -1]` (grasp hammer handle in stage 1).
+- `release_keypoints`: `[-1, -1, -1]` (no release needed).
+
+</solution>
+
+<python>
+
+# Explanation of how many stages are involved in the task and what each stage is about.
+
+The task involves **3 stages**:
+
+1. **Stage 1**: Grasp the hammer handle (`keypoint[2]`).
+2. **Stage 2**: Move the hammer to a suitable pose to hit the apple.
+3. **Stage 3**: Swing the hammer to hit the apple.
+
+```python
+import numpy as np
+
+# Constants
+epsilon = 0.01  # Tolerance of 1 cm
+desired_minimum_velocity = 0.5  # Minimum desired velocity towards the apple in m/s
+
+num_stages = 3
+
+### Stage 1 sub-goal constraints
+
+def stage1_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """
+    Constraint: Align the end-effector with the hammer handle (keypoint[2]).
+    The cost is the squared Euclidean distance between the end-effector pose and keypoint[2], minus epsilon squared.
+    Constraint is satisfied if cost <= 0.
+    """
+    cost = np.sum((eef_pose - keypoints[2])**2) - epsilon**2
+    return cost
+
+# No path constraints for Stage 1
+
+### Stage 2 sub-goal constraints
+
+def stage2_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """
+    Constraint: The hammer head (keypoint[4]) needs to be 0.1 meters above the apple (keypoint[0]) along the z-axis.
+    The cost is the squared difference between the z-coordinate difference and 0.1 m, minus epsilon squared.
+    Constraint is satisfied if cost <= 0.
+    """
+    delta_z = keypoints[4][2] - keypoints[0][2] - 0.1  # Desired delta_z is 0.1 m
+    cost = delta_z**2 - epsilon**2
+    return cost
+
+def stage2_subgoal_constraint2(eef_pose, keypoints, eef_velocity):
+    """
+    Constraint: The hammer should be aligned vertically along the z-axis.
+    The cost is the squared difference between the cosine of the angle and 1 (cos(0) = 1), minus epsilon squared.
+    Constraint is satisfied if cost <= 0.
+    """
+    hammer_vector = keypoints[4] - keypoints[2]  # From handle to head
+    hammer_vector_norm = hammer_vector / (np.linalg.norm(hammer_vector) + 1e-8)
+    z_axis = np.array([0.0, 0.0, 1.0])
+    cos_theta = np.dot(hammer_vector_norm, z_axis)
+    cost = (cos_theta - 1.0)**2 - epsilon**2
+    return cost
+
+### Stage 2 path constraints
+
+def stage2_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """
+    Path Constraint: The robot must still be grasping the hammer handle (keypoint[2]).
+    Constraint is satisfied if cost <= 0.
+    """
+    return get_grasping_cost_by_keypoint_idx(2)
+
+### Stage 3 sub-goal constraints
+
+def stage3_subgoal_constraint1(eef_pose, keypoints, eef_velocity):
+    """
+    Constraint: The hammer head (keypoint[4]) must contact the apple (keypoint[0]).
+    The cost is the squared Euclidean distance between keypoint[4] and keypoint[0], minus epsilon squared.
+    Constraint is satisfied if cost <= 0.
+    """
+    cost = np.sum((keypoints[4] - keypoints[0])**2) - epsilon**2
+    return cost
+
+def stage3_subgoal_constraint2(eef_pose, keypoints, eef_velocity):
+    """
+    Constraint: The hammer head must have sufficient velocity towards the apple at the moment of impact.
+    The cost is the desired minimum velocity minus the actual velocity towards the apple.
+    Constraint is satisfied if cost <= 0.
+    """
+    # Direction vector from hammer head to apple
+    direction_vector = keypoints[0] - keypoints[4]
+    direction_unit_vector = direction_vector / (np.linalg.norm(direction_vector) + 1e-8)
+    # Approximate hammer head velocity as the end-effector velocity
+    hammer_head_velocity = eef_velocity
+    velocity_towards_apple = np.dot(hammer_head_velocity, direction_unit_vector)
+    cost = desired_minimum_velocity - velocity_towards_apple
+    return cost
+
+### Stage 3 path constraints
+
+def stage3_path_constraint1(eef_pose, keypoints, eef_velocity):
+    """
+    Path Constraint: The robot must still be grasping the hammer handle (keypoint[2]).
+    Constraint is satisfied if cost <= 0.
+    """
+    return get_grasping_cost_by_keypoint_idx(2)
+
+def stage3_path_constraint2(eef_pose, keypoints, eef_velocity):
+    """
+    Path Constraint: The hammer head must remain aligned with the intended swinging direction.
+    The cost is the squared difference between the cosine of the angle and 1 (cos(0) = 1), minus epsilon squared.
+    Constraint is satisfied if cost <= 0.
+    """
+    hammer_vector = keypoints[4] - keypoints[2]  # Hammer orientation
+    swing_direction = keypoints[0] - keypoints[4]  # Direction to apple
+    hammer_vector_norm = hammer_vector / (np.linalg.norm(hammer_vector) + 1e-8)
+    swing_direction_norm = swing_direction / (np.linalg.norm(swing_direction) + 1e-8)
+    cos_theta = np.dot(hammer_vector_norm, swing_direction_norm)
+    cost = (cos_theta - 1.0)**2 - epsilon**2
+    return cost
+
+# Summarize keypoints to be grasped in all stages.
+# Grasp keypoint[2] in stage 1, no grasp in other stages.
+grasp_keypoints = [2, -1, -1]
+
+# Summarize keypoints to be released at the end of stages.
+# No release needed in any stage.
+release_keypoints = [-1, -1, -1]
+
+```
+
+</python>
