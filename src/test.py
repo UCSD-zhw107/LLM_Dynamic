@@ -10,6 +10,7 @@ from pynput import keyboard
 import numpy as np
 from og_env import OG_Env
 from fk_solver import FKSolver
+from try_drake import compute_fk
 
 def initialize_cameras(og_env,cam_config):
         """
@@ -51,13 +52,14 @@ def main():
     key_listener.start()
 
     
-    description, urdf, eef_name, reset_joint_pos = og_env.get_robot_model()
+    description, urdf, eef_name, reset_joint_pos, dof_idx = og_env.get_robot_model()
     trans_world2robot, trans_robot2world = og_env.get_transform()
     fk_solver = FKSolver(description, urdf, eef_name, reset_joint_pos,trans_world2robot)
     pos,orn = fk_solver.get_eef_poses(reset_joint_pos)
     jacobian = fk_solver.get_jacobian(reset_joint_pos)
     print(pos)
     print(jacobian)
+    compute_fk(urdf,reset_joint_pos, trans_world2robot, 'gripper_link',dof_idx)
     eef_p,_= og_env.get_robot_eef()
     print(eef_p)
     print("YES++++++++++++++++")

@@ -34,9 +34,9 @@ class OG_Env():
         """
         Initialize Robot Variables
         """
-        dof_idx = np.concatenate([self.robot.trunk_control_idx,
+        self.dof_idx = np.concatenate([self.robot.trunk_control_idx,
                                   self.robot.arm_control_idx[self.robot.default_arm]])
-        self.reset_joint_pos = self.robot.reset_joint_pos[dof_idx]
+        self.reset_joint_pos = self.robot.reset_joint_pos[self.dof_idx]
 
     def get_transform(self):
         """
@@ -63,13 +63,14 @@ class OG_Env():
             robot_urdf_path: URDF path
             eef_name: name of robot links (arm)
             reset_joint_pose: initial joint pose
+            dof_idx: index of contolled dof
         """
         
         robot_description_path=self.robot.robot_arm_descriptor_yamls[self.robot.default_arm]
         robot_urdf_path=self.robot.urdf_path
         eef_name=self.robot.eef_link_names[self.robot.default_arm]
 
-        return robot_description_path, robot_urdf_path, eef_name, self.reset_joint_pos
+        return robot_description_path, robot_urdf_path, eef_name, self.reset_joint_pos, self.dof_idx
 
 
     def get_robot_obs(self):
