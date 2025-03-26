@@ -53,9 +53,11 @@ def main():
     
     description, urdf, eef_name, reset_joint_pos = og_env.get_robot_model()
     trans_world2robot, trans_robot2world = og_env.get_transform()
-    fk_solver = FKSolver(description, urdf, eef_name, reset_joint_pos, trans_world2robot)
+    fk_solver = FKSolver(description, urdf, eef_name, reset_joint_pos,trans_world2robot)
     pos,orn = fk_solver.get_eef_poses(reset_joint_pos)
+    jacobian = fk_solver.get_jacobian(reset_joint_pos)
     print(pos)
+    print(jacobian)
     eef_p,_= og_env.get_robot_eef()
     print(eef_p)
     print("YES++++++++++++++++")

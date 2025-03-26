@@ -37,10 +37,6 @@ class OG_Env():
         dof_idx = np.concatenate([self.robot.trunk_control_idx,
                                   self.robot.arm_control_idx[self.robot.default_arm]])
         self.reset_joint_pos = self.robot.reset_joint_pos[dof_idx]
-        # T of robot in world frame
-        self.trans_world2robot = T.pose2mat(self.robot.get_position_orientation())
-        # T of world in robot frame
-        self.trans_robot2world = T.pose_inv(self.trans_world2robot)
 
     def get_transform(self):
         """
@@ -50,8 +46,14 @@ class OG_Env():
             trans_world2robot: 4x4 transformation of robot relative to world
             trans_robot2world: 4x4 transformation of world relative to robot base
         """
+        # T of robot in world frame
+        self.trans_world2robot = T.pose2mat(self.robot.get_position_orientation())
+        # T of world in robot frame
+        self.trans_robot2world = T.pose_inv(self.trans_world2robot)
 
         return self.trans_world2robot, self.trans_robot2world
+    
+
     def get_robot_model(self):
         """
         Find robot model
