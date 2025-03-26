@@ -4,7 +4,6 @@ import cv2
 import utils
 import omnigibson as og
 import numpy as np
-import pinocchio as pin
 from omnigibson.utils import control_utils
 import omnigibson.lazy as lazy
 import transform_utils as T

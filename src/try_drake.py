@@ -43,7 +43,7 @@ def convert_all_stl_to_obj(mesh_dir):
     print(f"Exporting Completer: Success {success_count}/{len(stl_files)}")
 
 
-def map_dof_idx_to_drake_q(dof_idx, joint_names):
+'''def map_dof_idx_to_drake_q(dof_idx, joint_names):
     name_to_drake_q_index = {
         'r_wheel_joint': 7,
         'l_wheel_joint': 8,
@@ -60,7 +60,42 @@ def map_dof_idx_to_drake_q(dof_idx, joint_names):
         'r_gripper_finger_joint': 19,
         'l_gripper_finger_joint': 20,
     }
-    return [name_to_drake_q_index[joint_names[i]] for i in dof_idx]
+    return [name_to_drake_q_index[joint_names[i]] for i in dof_idx]'''
+
+def mapidx_og2drake(dof_idx, og_joint_names, drake_joint_names):
+    """
+    Map OG dof_idx to Drake's joint indices based on joint name matching.
+    
+    Args:
+        dof_idx (list[int]): Index list into og_joint_names (e.g., [2, 4, 5])
+        og_joint_names (list[str]): All OG joint names (e.g., ['elbow_flex_joint', ...])
+        drake_q_names (list[str]): Drake position names from plant.GetPositionNames(model_index)
+
+    Returns:
+        list[int]: List of indices in Drake's q_all corresponding to OG's dof_idx
+    """
+    # mapping table
+    drake_name_map = {}
+    for i, full_name in enumerate(drake_joint_names):
+        for suffix in ["_q", "_x"]:  
+            if full_name.endswith(suffix):
+                joint_name = full_name.split("/")[-1].replace(suffix, "")
+                
+                parts = joint_name.split("_")
+                if len(parts) > 2:
+                    joint_core = "_".join(parts[-3:])  
+                else:
+                    joint_core = joint_name
+                drake_name_map[joint_core] = i
+
+    # map og joint idx into drake joint idx
+    mapped_idx = []
+    for i in dof_idx:
+        joint_name = og_joint_names[i]
+        if joint_name not in drake_name_map:
+            raise ValueError(f"[ERROR] Joint '{joint_name}' not found in Drake's q names.")
+        mapped_idx.append(drake_name_map[joint_name])
+    return mapped_idx
 
 
 
@@ -85,7 +120,9 @@ def compute_fk(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, 
     context = plant.CreateDefaultContext()
     nq = plant.num_positions(model_index)
     q_all = np.zeros(nq)
-    idx = map_dof_idx_to_drake_q(dof_idx, og_joint_name)
+
+    drake_joint_name = plant.GetPositionNames(model_index)
+    idx = mapidx_og2drake(dof_idx, og_joint_name, drake_joint_name)
     q_all[idx] =joint_positions
 
     plant.SetPositions(context, model_index, q_all)

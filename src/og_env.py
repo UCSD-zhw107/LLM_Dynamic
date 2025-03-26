@@ -69,8 +69,9 @@ class OG_Env():
         robot_description_path=self.robot.robot_arm_descriptor_yamls[self.robot.default_arm]
         robot_urdf_path=self.robot.urdf_path
         eef_name=self.robot.eef_link_names[self.robot.default_arm]
+        robot_joint_name = list(self.robot.joints.keys())
 
-        return robot_description_path, robot_urdf_path, eef_name, self.reset_joint_pos, self.dof_idx
+        return robot_description_path, robot_urdf_path, eef_name, self.reset_joint_pos, self.dof_idx, robot_joint_name
 
 
     def get_robot_obs(self):

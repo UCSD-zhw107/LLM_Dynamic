@@ -52,12 +52,12 @@ def main():
     key_listener.start()
 
     
-    description, urdf, eef_name, reset_joint_pos, dof_idx = og_env.get_robot_model()
+    description, urdf, eef_name, reset_joint_pos, dof_idx, robot_joint_name = og_env.get_robot_model()
     trans_world2robot, trans_robot2world = og_env.get_transform()
     fk_solver = FKSolver(description, urdf, eef_name, reset_joint_pos,trans_world2robot)
     pos,orn = fk_solver.get_eef_poses(reset_joint_pos)
     jacobian = fk_solver.get_jacobian(reset_joint_pos)
-    compute_fk(urdf,reset_joint_pos, trans_world2robot, 'gripper_link',dof_idx, list(og_env.robot.joints.keys()))
+    compute_fk(urdf,reset_joint_pos, trans_world2robot, eef_name,dof_idx, robot_joint_name)
     eef_p,_= og_env.get_robot_eef()
     print(pos)
     print(eef_p)
