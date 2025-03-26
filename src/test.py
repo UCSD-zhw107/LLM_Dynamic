@@ -59,6 +59,7 @@ def main():
     jacobian = fk_solver.get_jacobian(reset_joint_pos)
     compute_fk(urdf,reset_joint_pos, trans_world2robot, 'gripper_link',dof_idx, list(og_env.robot.joints.keys()))
     eef_p,_= og_env.get_robot_eef()
+    print(pos)
     print(eef_p)
     print("YES++++++++++++++++")
     

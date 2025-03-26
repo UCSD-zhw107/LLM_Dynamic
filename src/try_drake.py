@@ -10,6 +10,8 @@ from pydrake.all import (
 )
 import trimesh
 import transform_utils as T
+import logging
+logging.getLogger("drake").setLevel(logging.ERROR)
 
 def convert_all_stl_to_obj(mesh_dir):
     mesh_dir = Path(mesh_dir)
