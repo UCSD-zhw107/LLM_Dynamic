@@ -176,9 +176,7 @@ class PathGenerator():
         return twist_world
 
 
-
-
-    def objective(self):
+    def joint_path_cost(self, q, dq):
         """
         Below are the steps and formulation
         1. Decision variables:
@@ -197,17 +195,47 @@ class PathGenerator():
             1. We need to determine how many control number we should have
             2. We need B-spline interpolation during optimization to make sure smoothness
         """
+        if self.path_costs is None or len(self.path_costs) == 0:
+            return 0
+        
         # FK to get eef pose in world for given q
         eef_pos_world, trans_world2eef= self.compute_fk(q)
         # Update Keypoint based on eef pose in world frame
         keypoint_world = self.transform_keypoints(trans_world2eef, self.keypoints_eef, self.keypoint_movable_mask)
         # Jacobian to get eef twist in world
-        eef_twist_robot = self.compute_twist(dq)
-        eef_twist_world = T.vel_in_A_to_vel_in_B(eef_twist_robot[:3], eef_twist_robot[3:], self.trans_world2robot)
+        eef_twist_world = self.compute_twist(dq)
 
-        return
-
+        path_cost = 0
+        for cost_fn in self.path_costs:
+            cost = cost_fn(eef_pos_world, keypoint_world, eef_twist_world[:3])
+            path_cost += np.clip(cost, 0, np.inf)
+        return 200.0 * path_cost
     
+
+    def joint_path_total_cost(self,x):
+        n = self.num_steps
+        d = self.ndof
+        q_reshaped = x[0 : n*d].reshape(n, d)
+        dq_reshaped = x[n*d : 2*n*d].reshape(n, d)
+        total_cost = 0.0
+        # sum up cost for each step
+        for i in range(n):
+            cost_i = self.joint_path_cost(q_reshaped[i], dq_reshaped[i])
+            total_cost += cost_i
+        return total_cost
+
+
+    def set_optimizer(self):
+        self.prog = MathematicalProgram()
+        # decision variables
+        self.q = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='joint angle')
+        self.dq = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='joint velocity')
+        all_vars = np.concatenate((self.q.reshape(-1), self.dq.reshape(-1)))
+        # add cost
+        def path_cost(x):
+            return [self.joint_path_total_cost(x)]
+        self.prog.AddCost(path_cost, vars=all_vars)
+        
     @staticmethod
     @njit(cache=True, fastmath=True)
     def angle_between_rotmat(P, Q):
