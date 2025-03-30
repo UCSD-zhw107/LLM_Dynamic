@@ -68,7 +68,7 @@ class FKSolver():
             link_name (str): Name of link to compute Jacobian at (default to EEF)
         
         Returns:
-            J (np.array): 6 x N Jacobian (linear + angular)
+            J (np.array): 6 x N Jacobian (linear + angular) [vx,vy,vz,wx,wy,wz]
         """
         if link_name is None:
             link_name = self.eef_name

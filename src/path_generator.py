@@ -132,6 +132,7 @@ class PathGenerator():
         # map og dof index to drake dof index
         drake_joint_name = self.plant.GetPositionNames(self.model_index)
         self.drake_dof_idx = mapidx_og2drake(dof_idx, og_joint_name, drake_joint_name)
+        self.drake_twist_idx = np.array(self.drake_dof_idx) - 1
         
         # set initial joint pos
         q_all = np.zeros(self.drake_ndof)

@@ -12,6 +12,7 @@ import trimesh
 import transform_utils as T
 import logging
 from pydrake.autodiffutils import InitializeAutoDiff, AutoDiffXd
+from pydrake.multibody.tree import JacobianWrtVariable
 import pydrake.math
 logging.getLogger("drake").setLevel(logging.ERROR)
 RotationMatrix_AutoDiffXd = getattr(pydrake.math, [name for name in dir(pydrake.math) 
@@ -113,7 +114,6 @@ def mapidx_og2drake(dof_idx, og_joint_names, drake_joint_names):
 def compute_fk(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, og_joint_name):
 
 
-
     # 读取 URDF（支持 STL 替换为 OBJ）
     urdf_path = Path(urdf_path)
     with open(urdf_path, "r") as f:
@@ -149,6 +149,18 @@ def compute_fk(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, 
     eef_body = plant.GetBodyByName(eef_name, model_index)
     T_world_eef = plant.EvalBodyPoseInWorld(context, eef_body)
     pos,ori = T.mat2pose(T_world_eef.GetAsMatrix4())
+    
+    #Jacobian [wx,wy,wz,vx,vy,vz]
+    Jacobian = plant.CalcJacobianSpatialVelocity(
+        context,
+        with_respect_to=JacobianWrtVariable.kV,  
+        frame_B=eef_body.body_frame(),
+        p_BoBp_B= np.zeros(3, dtype=np.float64),
+        frame_A=base_body.body_frame(),             
+        frame_E=base_body.body_frame()              
+    )
+    v_idx = np.array(idx) - 1
+    print(Jacobian[:, v_idx])
     
     #name = plant.GetPositionNames(model_index)
     #print(f"Position #{model_index} -> {name}")
