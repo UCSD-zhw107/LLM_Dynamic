@@ -1,31 +1,47 @@
+from pathlib import Path
 import numpy as np
 from fk_solver import FKSolver
 import transform_utils as T
 import utils
 from numba import njit
 from pydrake.solvers import MathematicalProgram
+from pydrake.all import (
+    DiagramBuilder,
+    MultibodyPlant,
+    SceneGraph,
+    Parser,
+    RigidTransform,
+    RotationMatrix
+)
+from drake_utils import(
+    mapidx_og2drake
+)
+import logging
+
 
 class PathGenerator():
 
     def __init__(
         self,
-        robot_description_path,
         robot_urdf_path,
         eef_name,
-        reset_joint_pos,
+        initial_joint_pos,
+        dof_idx,
         trans_world2robot,
-        dof,
+        og_joint_name,
         pos_step_size,
         rot_step_size
     ):
-        # FK solver
-        self.fk_solver = FKSolver(robot_description_path, robot_urdf_path, eef_name, reset_joint_pos, trans_world2robot)
         self.path_costs = []
-        self.dof = dof
+        self.dof_idx = dof_idx
+        self.ndof = len(dof_idx)
         # Transformation from world to robot base (robot base pose in world frame)
         self.trans_world2robot = trans_world2robot
         self.pos_step_size = pos_step_size
         self.rot_step_size = rot_step_size
+        logging.getLogger("drake").setLevel(logging.ERROR)
+        # set drake plant for fk and jacobian
+        self.set_plant(robot_urdf_path, eef_name, dof_idx, og_joint_name, initial_joint_pos)
 
 
 
@@ -94,10 +110,52 @@ class PathGenerator():
         
         self.path_costs.append(stage3_path_constraint1)
 
-    def set_optmizer(self):
-        self.prog = MathematicalProgram()
-        self.q = self.prog.NewContinuousVariables(self.num_steps , self.dof, "q")
-        self.dq = self.prog.NewContinuousVariables(self.num_steps , self.dof, 'dq')
+    def set_plant(self,urdf_path, eef_name, dof_idx, og_joint_name, initial_joint_pose):
+        # set up urdf string
+        urdf_path = Path(urdf_path)
+        with open(urdf_path, "r") as f:
+            urdf_content = f.read()
+        urdf_content = urdf_content.replace(".STL", ".obj")
+
+        # build plant
+        self.plant = MultibodyPlant(time_step=0.0)
+        self.parser = Parser(self.plant)
+        model_indices = self.parser.AddModelsFromString(urdf_content, "urdf")
+        self.model_index = model_indices[0]
+        self.plant.Finalize()
+        self.eef_name = eef_name
+
+        # build context
+        self.context = self.plant.CreateDefaultContext()
+        self.drake_ndof = self.plant.num_positions(self.model_index)
+
+        # map og dof index to drake dof index
+        drake_joint_name = self.plant.GetPositionNames(self.model_index)
+        self.drake_dof_idx = mapidx_og2drake(dof_idx, og_joint_name, drake_joint_name)
+        
+        # set initial joint pos
+        q_all = np.zeros(self.drake_ndof)
+        q_all[self.drake_dof_idx] = initial_joint_pose
+        self.plant.SetPositions(self.context, self.model_index, q_all)
+
+        # set base pose in world frame
+        base_body = self.plant.GetBodyByName("base_link", self.model_index)
+        rot = RotationMatrix(self.trans_world2robot[:3, :3])
+        p = self.trans_world2robot[:3, 3]
+        T_world_base = RigidTransform(rot, p)
+        self.plant.SetFreeBodyPose(self.context, base_body, T_world_base)
+
+
+    def compute_fk(self, q):
+        # set joint angle
+        q_all = np.zeros(self.drake_ndof)
+        q_all[self.drake_dof_idx] = q
+        self.plant.SetPositions(self.context, self.model_index, q_all)
+
+        eef_body = self.plant.GetBodyByName(self.eef_name, self.model_index)
+        T_world_eef = self.plant.EvalBodyPoseInWorld(self.context, eef_body)
+        pos,ori = T.mat2pose(T_world_eef.GetAsMatrix4())
+        return pos, ori
 
 
     def objective(self):

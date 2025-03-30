@@ -11,7 +11,18 @@ from pydrake.all import (
 import trimesh
 import transform_utils as T
 import logging
+from pydrake.autodiffutils import InitializeAutoDiff, AutoDiffXd
+import pydrake.math
 logging.getLogger("drake").setLevel(logging.ERROR)
+RotationMatrix_AutoDiffXd = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                  if "RotationMatrix" in name and "AutoDiff" in name][0])
+RigidTransform_AutoDiffXd = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                 if "RigidTransform" in name and "AutoDiff" in name][0])
+
+RotationMatrix_Expression = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                  if "RotationMatrix" in name and "Expression" in name][0])
+RigidTransform_Expression = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                 if "RigidTransform" in name and "Expression" in name][0])
 
 def convert_all_stl_to_obj(mesh_dir):
     mesh_dir = Path(mesh_dir)
@@ -143,6 +154,91 @@ def compute_fk(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, 
     #print(f"Position #{model_index} -> {name}")
 
     print(pos)
+    return T_world_eef
+
+def compute_fk_autodff(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, og_joint_name):
+
+    # 读取 URDF（支持 STL 替换为 OBJ）
+    urdf_path = Path(urdf_path)
+    with open(urdf_path, "r") as f:
+        urdf_content = f.read()
+    urdf_content = urdf_content.replace(".STL", ".obj")
+
+    # 构建 plant
+    plant = MultibodyPlant(time_step=0.0)
+    parser = Parser(plant)
+    model_indices = parser.AddModelsFromString(urdf_content, "urdf")
+    model_index = model_indices[0]
+    plant.Finalize()
+
+    # 创建 context 并设置 joint 状态
+    plant_autod = plant.ToAutoDiffXd()
+    context = plant_autod.CreateDefaultContext()
+    nq = plant_autod.num_positions(model_index)
+    q_all = np.zeros(nq)
+
+    drake_joint_name = plant_autod.GetPositionNames(model_index)
+    idx = mapidx_og2drake(dof_idx, og_joint_name, drake_joint_name)
+    q_all[idx] =joint_positions
+    q_all = InitializeAutoDiff(q_all)
+
+    plant_autod.SetPositions(context, model_index, q_all)
+
+    # 设置 base pose（仅适用于 floating base）
+    base_body = plant_autod.GetBodyByName("base_link", model_index)
+    R = RotationMatrix_AutoDiffXd(T_world_base_4x4[:3, :3])
+    p = T_world_base_4x4[:3, 3]
+    T_world_base = RigidTransform_AutoDiffXd(R, p)
+    plant_autod.SetFreeBodyPose(context, base_body, T_world_base)
+
+    # 计算末端执行器的姿态
+    eef_body = plant_autod.GetBodyByName(eef_name, model_index)
+    T_world_eef = plant_autod.EvalBodyPoseInWorld(context, eef_body)
+    print(T_world_eef.translation())
+    return T_world_eef
+
+
+
+
+def compute_fk_expression(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, og_joint_name):
+
+    # 读取 URDF（支持 STL 替换为 OBJ）
+    urdf_path = Path(urdf_path)
+    with open(urdf_path, "r") as f:
+        urdf_content = f.read()
+    urdf_content = urdf_content.replace(".STL", ".obj")
+
+    # 构建 plant
+    plant = MultibodyPlant(time_step=0.0)
+    parser = Parser(plant)
+    model_indices = parser.AddModelsFromString(urdf_content, "urdf")
+    model_index = model_indices[0]
+    plant.Finalize()
+
+    # 创建 context 并设置 joint 状态
+    plant_autod = plant.ToSymbolic()
+    context = plant_autod.CreateDefaultContext()
+    nq = plant_autod.num_positions(model_index)
+    q_all = np.zeros(nq)
+
+    drake_joint_name = plant_autod.GetPositionNames(model_index)
+    idx = mapidx_og2drake(dof_idx, og_joint_name, drake_joint_name)
+    q_all[idx] =joint_positions
+    #q_all = InitializeAutoDiff(q_all)
+
+    plant_autod.SetPositions(context, model_index, q_all)
+
+    # 设置 base pose（仅适用于 floating base）
+    base_body = plant_autod.GetBodyByName("base_link", model_index)
+    R = RotationMatrix_Expression(T_world_base_4x4[:3, :3])
+    p = T_world_base_4x4[:3, 3]
+    T_world_base = RigidTransform_Expression(R, p)
+    plant_autod.SetFreeBodyPose(context, base_body, T_world_base)
+
+    # 计算末端执行器的姿态
+    eef_body = plant_autod.GetBodyByName(eef_name, model_index)
+    T_world_eef = plant_autod.EvalBodyPoseInWorld(context, eef_body)
+    print(T_world_eef.translation())
     return T_world_eef
 
 '''dict_keys(['l_wheel_joint', 8
