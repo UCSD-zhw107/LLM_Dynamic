@@ -160,6 +160,7 @@ def compute_fk(urdf_path, joint_positions, T_world_base_4x4, eef_name, dof_idx, 
         frame_E=base_body.body_frame()              
     )
     v_idx = np.array(idx) - 1
+    Jacobian = np.vstack([Jacobian[3:], Jacobian[:3]])
     print(Jacobian[:, v_idx])
     
     #name = plant.GetPositionNames(model_index)

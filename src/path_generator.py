@@ -17,7 +17,7 @@ from drake_utils import(
     mapidx_og2drake
 )
 import logging
-
+from pydrake.multibody.tree import JacobianWrtVariable
 
 class PathGenerator():
 
@@ -140,11 +140,12 @@ class PathGenerator():
         self.plant.SetPositions(self.context, self.model_index, q_all)
 
         # set base pose in world frame
-        base_body = self.plant.GetBodyByName("base_link", self.model_index)
+        self.base_body = self.plant.GetBodyByName("base_link", self.model_index)
         rot = RotationMatrix(self.trans_world2robot[:3, :3])
         p = self.trans_world2robot[:3, 3]
         T_world_base = RigidTransform(rot, p)
-        self.plant.SetFreeBodyPose(self.context, base_body, T_world_base)
+        self.plant.SetFreeBodyPose(self.context, self.base_body, T_world_base)
+        self.eef_body = self.plant.GetBodyByName(self.eef_name, self.model_index)
 
 
     def compute_fk(self, q):
@@ -152,11 +153,29 @@ class PathGenerator():
         q_all = np.zeros(self.drake_ndof)
         q_all[self.drake_dof_idx] = q
         self.plant.SetPositions(self.context, self.model_index, q_all)
-
-        eef_body = self.plant.GetBodyByName(self.eef_name, self.model_index)
-        T_world_eef = self.plant.EvalBodyPoseInWorld(self.context, eef_body)
+        # eef pose in world frame
+        T_world_eef = self.plant.EvalBodyPoseInWorld(self.context, self.eef_body)
         pos,ori = T.mat2pose(T_world_eef.GetAsMatrix4())
-        return pos, ori
+        pose = np.concatenate([pos, T.quat2euler(ori)])
+        return pose, T_world_eef
+    
+    def compute_twist(self, dq):
+        Jacobian = self.plant.CalcJacobianSpatialVelocity(
+            self.context,
+            with_respect_to=JacobianWrtVariable.kV,  
+            frame_B=self.eef_body.body_frame(),
+            p_BoBp_B= np.zeros(3, dtype=np.float64),
+            frame_A=self.base_body.body_frame(),             
+            frame_E=self.base_body.body_frame()              
+        )
+        Jacobian = np.vstack([Jacobian[3:], Jacobian[:3]])[:, self.drake_twist_idx]
+        # twist in base frame
+        twist_base = np.dot(Jacobian, dq)
+        # twist in world frame
+        twist_world = T.vel_in_A_to_vel_in_B(twist_base[:3], twist_base[3:], self.trans_world2robot)
+        return twist_world
+
+
 
 
     def objective(self):
@@ -167,11 +186,9 @@ class PathGenerator():
             - trajectory of joint angles: [q1,q2...qn], each q [1x8]
             - trajectory of joint velocity: [dq1, dq2.....dqn], each dq [1x8]
         1. Based on current q's, use FK(q) to compute eef pose in world frame: trans_world2eef
-        2. use self.trans_world2robot and trans_robot2eef to compute trans_world2eef eef pose in world frame
-        3. use trans_world2eef to update movable keypoints pose(keypoint_ee and keypoint_movable_mask) in world frame to ensure correct cost
-        4. Based on current dq's, use Jacobian * dq to compute eef twist in robot frame: twist_robot2eef
-        5. use rotate_world2robot and twist_robot2eef to compute twist_world2eef
-        6. Compute Cost as sum of path_costs by passing
+        2. use trans_world2eef to update movable keypoints pose(keypoint_ee and keypoint_movable_mask) in world frame to ensure correct cost
+        3. Based on current dq's, use Jacobian * dq to compute eef twist in world frame
+        4. Compute Cost as sum of path_costs by passing
             - updated keypoint in world frame
             - eef_pose in world
             - eef_twist in world
@@ -181,14 +198,11 @@ class PathGenerator():
             2. We need B-spline interpolation during optimization to make sure smoothness
         """
         # FK to get eef pose in world for given q
-        eef_pos_world, eef_ori_world= self.fk_solver.get_eef_poses(q)
-        eef_pose_world = np.concat([eef_pos_world, eef_ori_world])
+        eef_pos_world, trans_world2eef= self.compute_fk(q)
         # Update Keypoint based on eef pose in world frame
-        trans_world2eef = T.pose2mat((eef_pos_world, eef_ori_world))
         keypoint_world = self.transform_keypoints(trans_world2eef, self.keypoints_eef, self.keypoint_movable_mask)
         # Jacobian to get eef twist in world
-        jacobian = self.fk_solver.get_jacobian(q)
-        eef_twist_robot = jacobian @ dq
+        eef_twist_robot = self.compute_twist(dq)
         eef_twist_world = T.vel_in_A_to_vel_in_B(eef_twist_robot[:3], eef_twist_robot[3:], self.trans_world2robot)
 
         return
