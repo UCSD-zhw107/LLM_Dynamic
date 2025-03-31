@@ -212,7 +212,7 @@ class PathGenerator():
         return 200.0 * path_cost
     
 
-    def set_optimizer(self, time):
+    def set_optimizer(self, time, error_pose, error_ori, error_twist):
         self.prog = MathematicalProgram()
 
         # B-spline
@@ -240,8 +240,21 @@ class PathGenerator():
         self.prog.AddConstraint(self.q_traj.derivative(1).value(0).flatten() == self.start_q[self.ndof:])
 
         # goal constraint
-        target_pose = self.target_var[:6]
+        target_position = self.target_var[:3]
+        target_oritentation = T.euler2quat(self.target_var[3:6])
         target_twist = self.target_var[6:]
+
+        q_t= self.q_traj.value(time).flatten()
+        dq_t = self.q_traj.derivative(1).value(time).flatten()
+        pose_t,trans_t = self.compute_fk(q_t)
+        position_t = pose_t[:3]
+        orientation_t = T.euler2quat(pose_t[3:])
+        twist_t = self.compute_twist(dq_t)
+        self.prog.AddConstraint(np.linalg.norm(position_t,target_position) < error_pose)
+        self.prog.AddConstraint(T.get_orientation_diff_in_radian(orientation_t, target_oritentation) < error_ori)
+        self.prog.AddConstraint(np.linalg.norm(twist_t, target_twist) < error_twist)
+
+
 
 
 
