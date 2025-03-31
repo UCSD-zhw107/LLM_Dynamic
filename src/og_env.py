@@ -99,6 +99,34 @@ class OG_Env():
             eef_ori: robot eef orientation (quat xyzw) in world frame
         """
         return self.robot.get_eef_position(), self.robot.get_eef_orientation()
+    
+    def get_joint_config(self):
+        """
+        Robot joint config
+        """
+        joint_positions = self.robot.get_joint_positions()
+        joint_velocities = self.robot.get_joint_velocities()
+        return joint_positions[self.dof_idx], joint_velocities[self.dof_idx]
+    
+    
+    def get_joint_limit(self):
+        """
+        Robot joint limit
+        """
+        joint_pose_limit = self.robot.joint_position_limits()
+        joint_velocity_limit = self.robot.joint_velocity_limits()
+
+        # joint pose limit
+        joint_pose_min = joint_pose_limit[0][self.dof_idx]
+        joint_pose_max = joint_pose_limit[1][self.dof_idx]
+
+        # joint velocity limit
+        joint_vel_min = joint_velocity_limit[0][self.dof_idx]
+        joint_vel_max = joint_velocity_limit[1][self.dof_idx]
+
+        return (joint_pose_min, joint_pose_max), (joint_vel_min, joint_vel_max)
+        
+
 
     def step_robot(self, control):
         self.og_env.step(control)
