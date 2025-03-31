@@ -52,7 +52,7 @@ class PathGenerator():
 
         Args:
             - eef_pose: start eef pose in world frame [x,y,z,qx,qy,qz,qw]
-            - eef_twist: start eef twist in world frame [wx,wy,wz,vx,vy,vz]
+            - eef_twist: start eef twist in world frame [vx,vy,vz,wx,wy,wz]
             - keypoints: keypoint position in world frame [num_keypoints, 3]
             - keypoint_movable_mask(bool): Whether the keypoints are on the object being grasped
         """

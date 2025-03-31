@@ -1,5 +1,6 @@
 import os
 #import torch
+import numpy as np
 import torch
 import yaml
 
@@ -40,3 +41,10 @@ def to_numpy(data):
         return data.detach().cpu().numpy()
     else:
         return data
+    
+def transform_keypoints(transform, keypoints, movable_mask):
+    assert transform.shape == (4, 4)
+    transformed_keypoints = keypoints.copy()
+    if movable_mask.sum() > 0:
+        transformed_keypoints[movable_mask] = np.dot(keypoints[movable_mask], transform[:3, :3].T) + transform[:3, 3]
+    return transformed_keypoints

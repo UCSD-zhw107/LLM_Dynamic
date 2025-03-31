@@ -60,9 +60,10 @@ def main():
     print(jacobian)
     #compute_fk_expression(urdf,reset_joint_pos, trans_world2robot, eef_name,dof_idx, robot_joint_name)
     compute_fk(urdf,reset_joint_pos, trans_world2robot, eef_name,dof_idx, robot_joint_name)
-    eef_p,_= og_env.get_robot_eef()
+    eef_p,eef_ori= og_env.get_robot_eef()
     print(pos)
     print(eef_p)
+    print(eef_ori)
     print("YES++++++++++++++++")
     
     # Perform Task

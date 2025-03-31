@@ -20,6 +20,7 @@ from drake_utils import(
 )
 import logging
 from pydrake.multibody.tree import JacobianWrtVariable
+import utils
 
 class PathGenerator():
 
@@ -51,7 +52,7 @@ class PathGenerator():
 
         Args:
             - eef_pose: start eef pose in world frame [x,y,z,qx,qy,qz,qw]
-            - eef_twist: start eef twist in world frame [wx,wy,wz,vx,vy,vz]
+            - eef_twist: start eef twist in world frame [vx,vy,vz,wx,wy,wz]
             - keypoints: keypoint position in world frame [num_keypoints, 3]
             - keypoint_movable_mask(bool): Whether the keypoints are on the object being grasped
         """
@@ -61,7 +62,7 @@ class PathGenerator():
         trans_eef2world = T.pose_inv(trans_world2eef)
 
         # setup keypoint (moveable keypoint relative to eef)
-        self.keypoints_eef = self.transform_keypoints(trans_eef2world, keypoints, keypoint_movable_mask)
+        self.keypoints_eef = utils.transform_keypoints(trans_eef2world, keypoints, keypoint_movable_mask)
 
         # set zero
         eef_twist = np.zeros(6) # HACK: Remeber to remove this after testing
@@ -79,7 +80,7 @@ class PathGenerator():
 
         Args:
             - target_eef_pose: target eef pose for optimization in world frame [x,y,z,qx,qy,qz,qw]
-            - target_eef_twist: target eef twist for optimization in world frame [vx,vy,vz,qx,qy,qz]
+            - target_eef_twist: target eef twist for optimization in world frame [vx,vy,vz,wx,wy,wz]
         """
         eef_pose_euler = np.concatenate([target_eef_pose[:3], T.quat2euler(target_eef_pose[3:])])
         self.target_var = np.concatenate([eef_pose_euler, target_eef_twist])
@@ -201,7 +202,7 @@ class PathGenerator():
         # FK to get eef pose in world for given q
         eef_pos_world, trans_world2eef= self.compute_fk(q)
         # Update Keypoint based on eef pose in world frame
-        keypoint_world = self.transform_keypoints(trans_world2eef, self.keypoints_eef, self.keypoint_movable_mask)
+        keypoint_world = utils.transform_keypoints(trans_world2eef, self.keypoints_eef, self.keypoint_movable_mask)
         # Jacobian to get eef twist in world
         eef_twist_world = self.compute_twist(dq)
 
@@ -224,8 +225,8 @@ class PathGenerator():
         self.q_traj = BsplineTrajectory(basis, self.q_control.T)
         t = np.linspace(0, time, self.num_steps)
 
-        # LLM path cost
-        def total_path_cost(q_control_val):
+        # LLM path cost #TODO: FIX it later
+        '''def total_path_cost(q_control_val):
             total_cost = 0.0
             for ti in t:
                 # q(t) and dq(t)
@@ -233,14 +234,14 @@ class PathGenerator():
                 dq_i = self.q_traj.derivative(1).value(ti).flatten()  
                 total_cost += self.joint_path_cost(q_i, dq_i)
             return total_cost
-        self.prog.AddCost(total_path_cost, vars=self.q_control.flatten())
+        self.prog.AddCost(total_path_cost, vars=self.q_control.flatten())'''
 
         # start constraint
         self.prog.AddConstraint(self.q_traj.value(0).flatten() == self.start_q[:self.ndof])
         self.prog.AddConstraint(self.q_traj.derivative(1).value(0).flatten() == self.start_q[self.ndof:])
 
         # goal constraint
-        target_position = self.target_var[:3]
+        '''target_position = self.target_var[:3]
         target_oritentation = T.euler2quat(self.target_var[3:6])
         target_twist = self.target_var[6:]
 
@@ -250,9 +251,9 @@ class PathGenerator():
         position_t = pose_t[:3]
         orientation_t = T.euler2quat(pose_t[3:])
         twist_t = self.compute_twist(dq_t)
-        self.prog.AddConstraint(np.linalg.norm(position_t,target_position) < error_pose)
+        self.prog.AddConstraint(np.linalg.norm(position_t-target_position) < error_pose)
         self.prog.AddConstraint(T.get_orientation_diff_in_radian(orientation_t, target_oritentation) < error_ori)
-        self.prog.AddConstraint(np.linalg.norm(twist_t, target_twist) < error_twist)
+        self.prog.AddConstraint(np.linalg.norm(twist_t-target_twist) < error_twist)'''
 
 
 
@@ -308,11 +309,3 @@ class PathGenerator():
         num_path_poses = int(max(pos_num_steps, rot_num_steps))
         num_path_poses = max(num_path_poses, 2)  # at least start and end poses
         return num_path_poses
-
-    @staticmethod
-    def transform_keypoints(transform, keypoints, movable_mask):
-        assert transform.shape == (4, 4)
-        transformed_keypoints = keypoints.copy()
-        if movable_mask.sum() > 0:
-            transformed_keypoints[movable_mask] = np.dot(keypoints[movable_mask], transform[:3, :3].T) + transform[:3, 3]
-        return transformed_keypoints
