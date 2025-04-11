@@ -1,5 +1,7 @@
 from pathlib import Path
 import numpy as np
+import pydrake.math
+import pydrake.trajectories
 from fk_solver import FKSolver
 import transform_utils as T
 import utils
@@ -21,6 +23,15 @@ from drake_utils import(
 import logging
 from pydrake.multibody.tree import JacobianWrtVariable
 import utils
+BsplineBasis_Expression = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                  if "BsplineBasis" in name and "Expression" in name][0])
+BsplineTrajectory_Expression = getattr(pydrake.trajectories, [name for name in dir(pydrake.trajectories) 
+                                 if "BsplineTrajectory" in name and "Expression" in name][0])
+RotationMatrix_Expression = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                  if "RotationMatrix" in name and "Expression" in name][0])
+RigidTransform_Expression = getattr(pydrake.math, [name for name in dir(pydrake.math) 
+                                 if "RigidTransform" in name and "Expression" in name][0])
+from pydrake.symbolic import Expression
 
 class PathGenerator():
 
@@ -42,6 +53,7 @@ class PathGenerator():
         # set drake plant for fk and jacobian
         self.set_plant(robot_urdf_path, eef_name, dof_idx, og_joint_name, initial_joint_pos)
         self.initial_joint_pos = initial_joint_pos
+        self.initial_joint_vel = np.zeros(self.ndof)
 
 
 
@@ -70,7 +82,6 @@ class PathGenerator():
 
         self.start_var = np.concatenate([eef_pose_euler, eef_twist])
         self.keypoint_movable_mask = keypoint_movable_mask
-        self.start_q = np.concatenate([self.initial_joint_pos, eef_twist])
 
 
 
@@ -119,11 +130,14 @@ class PathGenerator():
         urdf_content = urdf_content.replace(".STL", ".obj")
 
         # build plant
-        self.plant = MultibodyPlant(time_step=0.0)
-        self.parser = Parser(self.plant)
-        model_indices = self.parser.AddModelsFromString(urdf_content, "urdf")
+        plant = MultibodyPlant(time_step=0.0)
+        parser = Parser(plant)
+        model_indices = parser.AddModelsFromString(urdf_content, "urdf")
         self.model_index = model_indices[0]
-        self.plant.Finalize()
+        plant.Finalize()
+
+        # convert to Expression
+        self.plant = plant.ToSymbolic()
         self.eef_name = eef_name
 
         # build context
@@ -142,32 +156,39 @@ class PathGenerator():
 
         # set base pose in world frame
         self.base_body = self.plant.GetBodyByName("base_link", self.model_index)
-        rot = RotationMatrix(self.trans_world2robot[:3, :3])
+        rot = RotationMatrix_Expression(self.trans_world2robot[:3, :3])
         p = self.trans_world2robot[:3, 3]
-        T_world_base = RigidTransform(rot, p)
+        T_world_base = RigidTransform_Expression(rot, p)
         self.plant.SetFreeBodyPose(self.context, self.base_body, T_world_base)
         self.eef_body = self.plant.GetBodyByName(self.eef_name, self.model_index)
 
 
+    def set_base_pose(self):
+        R = RotationMatrix_Expression(self.trans_world2robot[:3, :3])
+        p = self.trans_world2robot[:3, 3]
+        T_world_base = RigidTransform_Expression(R, p)
+        self.plant.SetFreeBodyPose(self.context, self.base_body, T_world_base)
+
     def compute_fk(self, q):
         # set joint angle
-        q_all = np.zeros(self.drake_ndof)
-        q_all[self.drake_dof_idx] = q
+        q_all = [Expression(0.0) for _ in range(self.drake_ndof)]
+        for i, j in enumerate(self.drake_dof_idx):
+            q_all[j] = q[i]
         self.plant.SetPositions(self.context, self.model_index, q_all)
+        self.set_base_pose()
         # eef pose in world frame
         T_world_eef = self.plant.EvalBodyPoseInWorld(self.context, self.eef_body)
-        pos,ori = T.mat2pose(T_world_eef.GetAsMatrix4())
-        pose = np.concatenate([pos, T.quat2euler(ori)])
-        return pose, T_world_eef
+        return T_world_eef.translation(), T_world_eef.rotation()
     
     def compute_twist(self, dq):
+        self.set_base_pose()
         Jacobian = self.plant.CalcJacobianSpatialVelocity(
             self.context,
             with_respect_to=JacobianWrtVariable.kV,  
             frame_B=self.eef_body.body_frame(),
             p_BoBp_B= np.zeros(3, dtype=np.float64),
             frame_A=self.base_body.body_frame(),             
-            frame_E=self.base_body.body_frame()              
+            frame_E=self.base_body.body_frame() #HACK: Can change this to direction express it in world frame             
         )
         Jacobian = np.vstack([Jacobian[3:], Jacobian[:3]])[:, self.drake_twist_idx]
         # twist in base frame
@@ -213,55 +234,55 @@ class PathGenerator():
         return 200.0 * path_cost
     
 
-    def set_optimizer(self, time, error_pose, error_ori, error_twist):
-        self.prog = MathematicalProgram()
 
-        # B-spline
-        degree = 3
-        knots = np.linspace(0, time, self.num_steps + degree + 1)
-        basis = BsplineBasis(degree, knots)
-        # decision variables
-        self.q_control = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='q_control')
-        self.q_traj = BsplineTrajectory(basis, self.q_control.T)
-        t = np.linspace(0, time, self.num_steps)
+    def _set_initial_constraint(self):
+        dq_start = self.initial_joint_vel
+        q_start = self.initial_joint_pos
+        for i in range(self.ndof):
+            self.prog.AddConstraint(self.q[0][i] == q_start[i])
+            self.prog.AddConstraint(self.dq[0][i] == dq_start[i])
 
-        # LLM path cost #TODO: FIX it later
-        '''def total_path_cost(q_control_val):
-            total_cost = 0.0
-            for ti in t:
-                # q(t) and dq(t)
-                q_i = self.q_traj.value(ti).flatten()  
-                dq_i = self.q_traj.derivative(1).value(ti).flatten()  
-                total_cost += self.joint_path_cost(q_i, dq_i)
-            return total_cost
-        self.prog.AddCost(total_path_cost, vars=self.q_control.flatten())'''
 
-        # start constraint
-        self.prog.AddConstraint(self.q_traj.value(0).flatten() == self.start_q[:self.ndof])
-        self.prog.AddConstraint(self.q_traj.derivative(1).value(0).flatten() == self.start_q[self.ndof:])
-
-        # goal constraint
-        '''target_position = self.target_var[:3]
-        target_oritentation = T.euler2quat(self.target_var[3:6])
-        target_twist = self.target_var[6:]
-
-        q_t= self.q_traj.value(time).flatten()
-        dq_t = self.q_traj.derivative(1).value(time).flatten()
+    '''def _set_target_pose_constraint(self,q_t):
         pose_t,trans_t = self.compute_fk(q_t)
         position_t = pose_t[:3]
         orientation_t = T.euler2quat(pose_t[3:])
-        twist_t = self.compute_twist(dq_t)
-        self.prog.AddConstraint(np.linalg.norm(position_t-target_position) < error_pose)
-        self.prog.AddConstraint(T.get_orientation_diff_in_radian(orientation_t, target_oritentation) < error_ori)
-        self.prog.AddConstraint(np.linalg.norm(twist_t-target_twist) < error_twist)'''
+
+        target_position = self.target_var[:3]
+        target_oritentation = T.euler2quat(self.target_var[3:6])
+        pose_error = position_t - target_position
 
 
+        pass
+'''
 
+    def set_optimizer(self, time, error_pose, error_ori, error_twist):
+        self.prog = MathematicalProgram()
+        # decision variables
+        self.q = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='q')
+        self.dq = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='dq')
+        all_vars = np.concatenate((self.q.reshape(-1), self.dq.reshape(-1)))
+        
 
-
+        # Start Constraint
+        self._set_initial_constraint()
+        self.compute_fk(self.to_expression(self.initial_joint_pos))
+        self.compute_twist(self.dq[0])
 
         
-        
+
+
+
+
+
+
+    @staticmethod
+    def to_expression(arr):
+        """
+        Convert a 1D numpy array (containing Drake Variables or Expressions)
+        into a list of pydrake.symbolic.Expression.
+        """
+        return [Expression(x) for x in arr]
         
     @staticmethod
     @njit(cache=True, fastmath=True)

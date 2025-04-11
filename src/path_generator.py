@@ -232,10 +232,57 @@ class PathGenerator():
         self.dq = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='joint velocity')
         all_vars = np.concatenate((self.q.reshape(-1), self.dq.reshape(-1)))
         # add cost
-        def path_cost(x):
+        '''def path_cost(x):
             return [self.joint_path_total_cost(x)]
-        self.prog.AddCost(path_cost, vars=all_vars)
+        self.prog.AddCost(path_cost, vars=all_vars)'''
+        self.prog.AddConstraint(self.q == self.start_q[:self.ndof])
+        self.prog.AddConstraint(self.dq == self.start_q[self.ndof:])
         
+
+
+    def set_optimizer(self, time, error_pose, error_ori, error_twist):
+        self.prog = MathematicalProgram()
+
+        # B-spline
+        degree = 3
+        knots = np.linspace(0, time, self.num_steps + degree + 1)
+        basis = BsplineBasis(degree, knots)
+        # decision variables
+        self.q_control = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='q_control')
+        self.q_traj = BsplineTrajectory(basis, self.q_control.T)
+        t = np.linspace(0, time, self.num_steps)
+
+        # LLM path cost #TODO: FIX it later
+        '''def total_path_cost(q_control_val):
+            total_cost = 0.0
+            for ti in t:
+                # q(t) and dq(t)
+                q_i = self.q_traj.value(ti).flatten()  
+                dq_i = self.q_traj.derivative(1).value(ti).flatten()  
+                total_cost += self.joint_path_cost(q_i, dq_i)
+            return total_cost
+        self.prog.AddCost(total_path_cost, vars=self.q_control.flatten())'''
+
+        # start constraint
+        self.prog.AddConstraint(self.q_traj.value(0).flatten() == self.start_q[:self.ndof])
+        self.prog.AddConstraint(self.q_traj.derivative(1).value(0).flatten() == self.start_q[self.ndof:])
+
+        # goal constraint
+        '''target_position = self.target_var[:3]
+        target_oritentation = T.euler2quat(self.target_var[3:6])
+        target_twist = self.target_var[6:]
+
+        q_t= self.q_traj.value(time).flatten()
+        dq_t = self.q_traj.derivative(1).value(time).flatten()
+        pose_t,trans_t = self.compute_fk(q_t)
+        position_t = pose_t[:3]
+        orientation_t = T.euler2quat(pose_t[3:])
+        twist_t = self.compute_twist(dq_t)
+        self.prog.AddConstraint(np.linalg.norm(position_t-target_position) < error_pose)
+        self.prog.AddConstraint(T.get_orientation_diff_in_radian(orientation_t, target_oritentation) < error_ori)
+        self.prog.AddConstraint(np.linalg.norm(twist_t-target_twist) < error_twist)'''
+
+
     @staticmethod
     @njit(cache=True, fastmath=True)
     def angle_between_rotmat(P, Q):
