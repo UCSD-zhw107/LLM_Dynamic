@@ -15,7 +15,8 @@ from pydrake.all import (
     RigidTransform,
     RotationMatrix,
     BsplineBasis,
-    BsplineTrajectory
+    BsplineTrajectory,
+    AreQuaternionsEqualForOrientation
 )
 from drake_utils import(
     mapidx_og2drake
@@ -68,6 +69,9 @@ class PathGenerator():
             - keypoints: keypoint position in world frame [num_keypoints, 3]
             - keypoint_movable_mask(bool): Whether the keypoints are on the object being grasped
         """
+        assert isinstance(eef_pose, (list, np.ndarray)) and len(eef_pose) == 7, f"Expected eef_pose to be of length 7 (xyz + quat), got {len(eef_pose)}"
+        assert isinstance(eef_twist, (list, np.ndarray)) and len(eef_twist) == 6, f"Expected eef_twist to be of length 6 (vx vy vz wx wy wz), got {len(eef_twist)}"
+
         # transform of eef in world
         trans_world2eef = T.pose2mat([eef_pose[:3], eef_pose[3:]])
         # transform of world in eef
@@ -78,9 +82,9 @@ class PathGenerator():
 
         # set zero
         eef_twist = np.zeros(6) # HACK: Remeber to remove this after testing
-        eef_pose_euler = np.concatenate([eef_pose[:3], T.quat2euler(eef_pose[3:])])
+        eef_pose_quat = np.concatenate([eef_pose[:3], eef_pose[3:]])
 
-        self.start_var = np.concatenate([eef_pose_euler, eef_twist])
+        self.start_var = np.concatenate([eef_pose_quat, eef_twist])
         self.keypoint_movable_mask = keypoint_movable_mask
 
 
@@ -93,16 +97,18 @@ class PathGenerator():
             - target_eef_pose: target eef pose for optimization in world frame [x,y,z,qx,qy,qz,qw]
             - target_eef_twist: target eef twist for optimization in world frame [vx,vy,vz,wx,wy,wz]
         """
-        eef_pose_euler = np.concatenate([target_eef_pose[:3], T.quat2euler(target_eef_pose[3:])])
-        self.target_var = np.concatenate([eef_pose_euler, target_eef_twist])
+        assert isinstance(target_eef_pose, (list, np.ndarray)) and len(target_eef_pose) == 7, f"Expected target_eef_pose to be of length 7 (xyz + quat), got {len(target_eef_pose)}"
+        assert isinstance(target_eef_twist, (list, np.ndarray)) and len(target_eef_twist) == 6, f"Expected target_eef_twist to be of length 6 (vx vy vz wx wy wz), got {len(target_eef_twist)}"
+        eef_pose_quat = np.concatenate([target_eef_pose[:3], target_eef_pose[3:]])
+        self.target_var = np.concatenate([eef_pose_quat, target_eef_twist])
 
 
     def set_steps(self, pos_step_size,rot_step_size):
         """
         Calculate an appropriate number of control points, including start and goal
         """
-        start_pose = self.start_var[:6]
-        end_pose = self.target_var[:6]
+        start_pose = self.start_var[:7]
+        end_pose = self.target_var[:7]
         # FIXME: Might need consider twist as well to calculate number of control point
         self.num_steps = self.get_linear_interpolation_steps(start_pose, end_pose, pos_step_size, rot_step_size)
         self.num_steps = np.clip(self.num_steps, 3 ,6)
@@ -188,13 +194,14 @@ class PathGenerator():
             frame_B=self.eef_body.body_frame(),
             p_BoBp_B= np.zeros(3, dtype=np.float64),
             frame_A=self.base_body.body_frame(),             
-            frame_E=self.base_body.body_frame() #HACK: Can change this to direction express it in world frame             
+            frame_E=self.plant.world_frame() #HACK: Can change this to direction express it in world frame             
         )
         Jacobian = np.vstack([Jacobian[3:], Jacobian[:3]])[:, self.drake_twist_idx]
-        # twist in base frame
+        # twist in base frame [wx,wy,wz,vx,vy,vz]
         twist_base = np.dot(Jacobian, dq)
         # twist in world frame
-        twist_world = T.vel_in_A_to_vel_in_B(twist_base[:3], twist_base[3:], self.trans_world2robot)
+        twist_world = twist_base
+        #twist_world = T.vel_in_A_to_vel_in_B(twist_base[:3], twist_base[3:], self.trans_world2robot)
         return twist_world
 
 
@@ -221,7 +228,7 @@ class PathGenerator():
             return 0
         
         # FK to get eef pose in world for given q
-        eef_pos_world, trans_world2eef= self.compute_fk(q)
+        eef_pos_world, trans_world2eef= self.compute_fk(q) #TODO: UPDATE!!!!!
         # Update Keypoint based on eef pose in world frame
         keypoint_world = utils.transform_keypoints(trans_world2eef, self.keypoints_eef, self.keypoint_movable_mask)
         # Jacobian to get eef twist in world
@@ -243,20 +250,29 @@ class PathGenerator():
             self.prog.AddConstraint(self.dq[0][i] == dq_start[i])
 
 
-    '''def _set_target_pose_constraint(self,q_t):
-        pose_t,trans_t = self.compute_fk(q_t)
-        position_t = pose_t[:3]
-        orientation_t = T.euler2quat(pose_t[3:])
-
+    def _set_target_pose_constraint(self, q_t, dq_t, rot_tol):
+        # FK
+        position_t, rot_t = self.compute_fk(q_t)
+        # Jacobian
+        twist_t = self.compute_twist(dq_t)
+        # target pose
         target_position = self.target_var[:3]
-        target_oritentation = T.euler2quat(self.target_var[3:6])
+
+        # Rotation Error
+        target_rot = RotationMatrix_Expression(T.quat2mat(self.target_var[3:7]))
+        #rot_error = target_rot @ rot_t.inverse()
+        self.prog.AddConstraint(AreQuaternionsEqualForOrientation(target_rot.ToQuaternion(), rot_t.ToQuaternion(), rot_tol))
+
+        # Translation Error
         pose_error = position_t - target_position
+        self.prog.AddConstraint(pose_error.dot(pose_error) < 0.1)
 
 
-        pass
-'''
 
-    def set_optimizer(self, time, error_pose, error_ori, error_twist):
+        return
+
+
+    def set_optimizer(self, time, tol_pose, tol_ori, tol_twist):
         self.prog = MathematicalProgram()
         # decision variables
         self.q = self.prog.NewContinuousVariables(self.num_steps, self.ndof, name='q')
@@ -266,8 +282,7 @@ class PathGenerator():
 
         # Start Constraint
         self._set_initial_constraint()
-        self.compute_fk(self.to_expression(self.initial_joint_pos))
-        self.compute_twist(self.dq[0])
+        self._set_target_pose_constraint(self.to_expression(self.initial_joint_pos), self.to_expression(self.initial_joint_vel), 1.5)
 
         
 

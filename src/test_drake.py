@@ -85,7 +85,7 @@ def main():
     # step size
     path_solver.set_steps(pos_step_size=0.2, rot_step_size=0.78)
     # optimizer
-    path_solver.set_optimizer(time=5.0, error_ori=0.1, error_pose=0.1, error_twist=0.1)
+    path_solver.set_optimizer(time=5.0, tol_ori=0.1, tol_pose=0.1, tol_twist=0.1)
 
 
 
