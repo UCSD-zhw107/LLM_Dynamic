@@ -270,6 +270,7 @@ class PathGenerator():
 
 
     def _set_target_constraint(self, q_t, dq_t, trans_tol, rot_tol, twist_tol):
+        # TODO: Might need to change to cost
         # FK
         position_t, rot_t = self.compute_fk(q_t)
         # Jacobian
@@ -302,7 +303,7 @@ class PathGenerator():
         # Start Constraint
         self._set_initial_constraint()
         self._set_target_constraint(self.to_expression(self.initial_joint_pos), self.to_expression(self.initial_joint_vel), 1.0, 1.0, 1.0)
-        
+
 
         
 
