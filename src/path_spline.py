@@ -65,12 +65,12 @@ class PathGenerator():
 
         Args:
             - eef_pose: start eef pose in world frame [x,y,z,qx,qy,qz,qw]
-            - eef_twist: start eef twist in world frame [vx,vy,vz,wx,wy,wz]
+            - eef_twist: start eef twist in world frame [wx,wy,wz,vx,vy,vz]
             - keypoints: keypoint position in world frame [num_keypoints, 3]
             - keypoint_movable_mask(bool): Whether the keypoints are on the object being grasped
         """
         assert isinstance(eef_pose, (list, np.ndarray)) and len(eef_pose) == 7, f"Expected eef_pose to be of length 7 (xyz + quat), got {len(eef_pose)}"
-        assert isinstance(eef_twist, (list, np.ndarray)) and len(eef_twist) == 6, f"Expected eef_twist to be of length 6 (vx vy vz wx wy wz), got {len(eef_twist)}"
+        assert isinstance(eef_twist, (list, np.ndarray)) and len(eef_twist) == 6, f"Expected eef_twist to be of length 6 [wx,wy,wz,vx,vy,vz], got {len(eef_twist)}"
 
         # transform of eef in world
         trans_world2eef = T.pose2mat([eef_pose[:3], eef_pose[3:]])
@@ -95,10 +95,10 @@ class PathGenerator():
 
         Args:
             - target_eef_pose: target eef pose for optimization in world frame [x,y,z,qx,qy,qz,qw]
-            - target_eef_twist: target eef twist for optimization in world frame [vx,vy,vz,wx,wy,wz]
+            - target_eef_twist: target eef twist for optimization in world frame [wx,wy,wz,vx,vy,vz]
         """
         assert isinstance(target_eef_pose, (list, np.ndarray)) and len(target_eef_pose) == 7, f"Expected target_eef_pose to be of length 7 (xyz + quat), got {len(target_eef_pose)}"
-        assert isinstance(target_eef_twist, (list, np.ndarray)) and len(target_eef_twist) == 6, f"Expected target_eef_twist to be of length 6 (vx vy vz wx wy wz), got {len(target_eef_twist)}"
+        assert isinstance(target_eef_twist, (list, np.ndarray)) and len(target_eef_twist) == 6, f"Expected target_eef_twist to be of length 6 [wx,wy,wz,vx,vy,vz], got {len(target_eef_twist)}"
         eef_pose_quat = np.concatenate([target_eef_pose[:3], target_eef_pose[3:]])
         self.target_var = np.concatenate([eef_pose_quat, target_eef_twist])
 
@@ -176,6 +176,16 @@ class PathGenerator():
         self.plant.SetFreeBodyPose(self.context, self.base_body, T_world_base)
 
     def compute_fk(self, q):
+        """
+        Compute FK
+
+        Args:
+            - q: joint angles, DoF
+        
+        Returns:
+            - EEF position in world frame
+            - EEF orientation in world frame
+        """
         # set joint angle
         q_all = [Expression(0.0) for _ in range(self.drake_ndof)]
         for i, j in enumerate(self.drake_dof_idx):
@@ -187,6 +197,15 @@ class PathGenerator():
         return T_world_eef.translation(), T_world_eef.rotation()
     
     def compute_twist(self, dq):
+        """
+        Compute twist by Jacobian
+
+        Args:
+            - dq: joint vel, DoF
+        
+        Returns:
+            - EEF twist in world frame
+        """
         self.set_base_pose()
         Jacobian = self.plant.CalcJacobianSpatialVelocity(
             self.context,
@@ -250,7 +269,7 @@ class PathGenerator():
             self.prog.AddConstraint(self.dq[0][i] == dq_start[i])
 
 
-    def _set_target_pose_constraint(self, q_t, dq_t, rot_tol):
+    def _set_target_constraint(self, q_t, dq_t, trans_tol, rot_tol, twist_tol):
         # FK
         position_t, rot_t = self.compute_fk(q_t)
         # Jacobian
@@ -260,16 +279,16 @@ class PathGenerator():
 
         # Rotation Error
         target_rot = RotationMatrix_Expression(T.quat2mat(self.target_var[3:7]))
-        #rot_error = target_rot @ rot_t.inverse()
         self.prog.AddConstraint(AreQuaternionsEqualForOrientation(target_rot.ToQuaternion(), rot_t.ToQuaternion(), rot_tol))
 
         # Translation Error
         pose_error = position_t - target_position
-        self.prog.AddConstraint(pose_error.dot(pose_error) < 0.1)
+        self.prog.AddConstraint(pose_error.dot(pose_error) < trans_tol)
 
-
-
-        return
+        # Liner velocity Error
+        target_twist = self.target_var[7:]
+        twist_error =  twist_t - target_twist
+        self.prog.AddConstraint(twist_error.dot(twist_error) < twist_tol)
 
 
     def set_optimizer(self, time, tol_pose, tol_ori, tol_twist):
@@ -282,7 +301,8 @@ class PathGenerator():
 
         # Start Constraint
         self._set_initial_constraint()
-        self._set_target_pose_constraint(self.to_expression(self.initial_joint_pos), self.to_expression(self.initial_joint_vel), 1.5)
+        self._set_target_constraint(self.to_expression(self.initial_joint_pos), self.to_expression(self.initial_joint_vel), 1.0, 1.0, 1.0)
+        
 
         
 
